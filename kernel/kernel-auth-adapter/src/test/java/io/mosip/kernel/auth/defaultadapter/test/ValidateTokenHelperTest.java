@@ -19,6 +19,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.time.Instant;
 import java.util.Date;
@@ -105,6 +106,9 @@ public class ValidateTokenHelperTest {
 	private ValidateTokenHelper validateTokenHelper;
 
 	private static final Provider BC = new BouncyCastleProvider();
+
+	private static final String HS384_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef";
+	private static final String HS512_SECRET = HS384_SECRET + "0123456789abcdef";
 
 	private HttpServer server;
 
@@ -531,6 +535,63 @@ public class ValidateTokenHelperTest {
 	@Test
 	public void getPublicKey_withES256KToken_thenNullWithoutDownloadingKey() throws Exception {
 		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedES256KToken(newES256KKey()))));
+	}
+
+	@Test
+	public void isTokenValid_withHS384AndConfiguredSecret_thenPass() {
+		assertThat(isTokenValidWithHmacSecret(hmacToken("HS384", HS384_SECRET), HS384_SECRET).left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withHS512AndConfiguredSecret_thenPass() {
+		assertThat(isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET), HS512_SECRET).left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withHS512AndNoConfiguredSecret_thenUnauthorized() {
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET), "");
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withHS512AndWrongSecret_thenUnauthorized() {
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET),
+				HS512_SECRET.replace('0', '9'));
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withHS512SignedWithPublicKeyAsSecret_thenUnauthorized() throws Exception {
+		KeyPair kp = generateKeyPair("RSA", 2048);
+		String forged = JWT.create().withPayload(tokenClaims())
+				.sign(Algorithm.HMAC512(Base64.getEncoder().encode(kp.getPublic().getEncoded())));
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithHmacSecret(forged, HS512_SECRET);
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void getPublicKey_withHS512Token_thenNullWithoutDownloadingKey() {
+		assertNull(validateTokenHelper.getPublicKey(JWT.decode(hmacToken("HS512", HS512_SECRET))));
+	}
+
+	private String hmacToken(String algorithm, String secret) {
+		byte[] key = secret.getBytes(StandardCharsets.UTF_8);
+		return JWT.create().withPayload(tokenClaims())
+				.sign("HS384".equals(algorithm) ? Algorithm.HMAC384(key) : Algorithm.HMAC512(key));
+	}
+
+	private ImmutablePair<Boolean, AuthAdapterErrorCode> isTokenValidWithHmacSecret(String token, String secret) {
+		Object originalSecret = ReflectionTestUtils.getField(validateTokenHelper, "hmacSecret");
+		ReflectionTestUtils.setField(validateTokenHelper, "hmacSecret", secret);
+		try {
+			return validateTokenHelper.isTokenValid(JWT.decode(token), null);
+		} finally {
+			ReflectionTestUtils.setField(validateTokenHelper, "hmacSecret", originalSecret);
+		}
 	}
 
 	@After

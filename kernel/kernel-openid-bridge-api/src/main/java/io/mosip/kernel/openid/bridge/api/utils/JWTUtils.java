@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.AlgorithmMismatchException;
+import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbusds.jose.JOSEException;
@@ -39,6 +40,10 @@ public class JWTUtils {
 
 	private static final String ED25519_ALGORITHM = "Ed25519";
 	private static final String ES256K_ALGORITHM = "ES256K";
+	private static final String HS384_ALGORITHM = "HS384";
+	private static final String HS512_ALGORITHM = "HS512";
+	private static final int HS384_MIN_SECRET_LENGTH = 48;
+	private static final int HS512_MIN_SECRET_LENGTH = 64;
 	private static final int JWKS_TIMEOUT_MS = 5000;
 	private static final int JWKS_SIZE_LIMIT = 51200;
 
@@ -163,6 +168,47 @@ public class JWTUtils {
 					.getBytes(StandardCharsets.US_ASCII);
 			return verifier.verify(new JWSHeader(algorithm), signingInput, new Base64URL(decodedJWT.getSignature()));
 		} catch (JOSEException e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Tells whether the token is signed with HMAC (HS384 or HS512). Such tokens are
+	 * verified with a configured shared secret, see
+	 * {@link #isHmacSignatureValid}, and never with a key from the JWKS endpoint.
+	 *
+	 * @param decodedJWT the decoded token
+	 * @return true if the {@code alg} header of the token is HS384 or HS512
+	 */
+	public static boolean isHmacToken(DecodedJWT decodedJWT) {
+		return HS384_ALGORITHM.equals(decodedJWT.getAlgorithm()) || HS512_ALGORITHM.equals(decodedJWT.getAlgorithm());
+	}
+
+	/**
+	 * Verifies the signature of an HS384 or HS512 token with a shared secret.
+	 * The secret must be configured, and the key of the JWKS endpoint is never
+	 * used, so that a public key cannot be passed off as an HMAC secret.
+	 *
+	 * @param decodedJWT the decoded token
+	 * @param secret     the configured shared secret, used as UTF-8 bytes. It must
+	 *                   be at least as long as the hash output (48 bytes for HS384
+	 *                   and 64 bytes for HS512), as RFC 7518 section 3.2 requires.
+	 * @return true only if the signature is valid. A missing or too short secret,
+	 *         or any other algorithm, give false.
+	 */
+	public static boolean isHmacSignatureValid(DecodedJWT decodedJWT, String secret) {
+		if (secret == null || !isHmacToken(decodedJWT)) {
+			return false;
+		}
+		byte[] key = secret.getBytes(StandardCharsets.UTF_8);
+		boolean hs384 = HS384_ALGORITHM.equals(decodedJWT.getAlgorithm());
+		if (key.length < (hs384 ? HS384_MIN_SECRET_LENGTH : HS512_MIN_SECRET_LENGTH)) {
+			return false;
+		}
+		try {
+			(hs384 ? Algorithm.HMAC384(key) : Algorithm.HMAC512(key)).verify(decodedJWT);
+			return true;
+		} catch (SignatureVerificationException e) {
 			return false;
 		}
 	}

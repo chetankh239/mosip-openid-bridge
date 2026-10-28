@@ -69,6 +69,9 @@ public class ValidateTokenHelper {
 
 	private Map<String, PublicKey> publicKeys = new HashMap<>();
 
+	@Value("${auth.server.admin.hmac.secret:}")
+	private String hmacSecret;
+
 	@Value("${auth.server.admin.oidc.certs.path:/protocol/openid-connect/certs}")
 	private String certsPath;
 
@@ -164,7 +167,13 @@ public class ValidateTokenHelper {
 
 		// Third, signature validation.
 		try {
-			if (JWTUtils.isNimbusToken(decodedJWT)) {
+			if (JWTUtils.isHmacToken(decodedJWT)) {
+				// HS384 and HS512 are verified with the configured shared secret only.
+				if (!JWTUtils.isHmacSignatureValid(decodedJWT, hmacSecret)) {
+					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
+					return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
+				}
+			} else if (JWTUtils.isNimbusToken(decodedJWT)) {
 				// java-jwt does not support Ed25519 and ES256K, so they are verified with nimbus-jose-jwt.
 				if (!JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT))) {
 					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
@@ -231,8 +240,8 @@ public class ValidateTokenHelper {
 		String userName = decodedJWT.getClaim(AuthAdapterConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
-		if (JWTUtils.isNimbusToken(decodedJWT)) {
-			// Ed25519 and ES256K keys are not read by the JWKS library, see getPublicJWK.
+		if (JWTUtils.isNimbusToken(decodedJWT) || JWTUtils.isHmacToken(decodedJWT)) {
+			// These tokens are not verified with a key read by the JWKS library, see getPublicJWK and hmacSecret.
 			return null;
 		}
 
