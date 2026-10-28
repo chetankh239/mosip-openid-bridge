@@ -1,9 +1,11 @@
 package io.mosip.kernel.authcodeflowproxy.api.validator;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.PublicKey;
+import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,6 +35,7 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.nimbusds.jose.jwk.OctetKeyPair;
 
 import io.mosip.kernel.core.util.DateUtils2;
 import io.mosip.kernel.core.util.EmptyCheckUtils;
@@ -172,6 +175,11 @@ public class ValidateTokenUtil {
 		String userName = decodedJWT.getClaim(AuthConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
+		if (JWTUtils.isEdDSAToken(decodedJWT)) {
+			// EdDSA keys are not PublicKey objects, see getOctetKeyPair.
+			return null;
+		}
+
 		String keyId = decodedJWT.getKeyId();
 		PublicKey publicKey = publicKeys.get(keyId);
 
@@ -190,10 +198,18 @@ public class ValidateTokenUtil {
 	 */
 	public ImmutablePair<Boolean, AuthErrorCode> verifyJWTSignagure(DecodedJWT decodedJWT) {
 		try {
-			String tokenAlgo = decodedJWT.getAlgorithm();
-			PublicKey publicKey = getPublicKey(decodedJWT);
-			Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
-			algorithm.verify(decodedJWT);
+			if (JWTUtils.isEdDSAToken(decodedJWT)) {
+				// java-jwt does not support EdDSA, so it is verified with nimbus-jose-jwt.
+				if (!JWTUtils.isEdDSASignatureValid(decodedJWT, getOctetKeyPair(decodedJWT))) {
+					LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.");
+					return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
+				}
+			} else {
+				String tokenAlgo = decodedJWT.getAlgorithm();
+				PublicKey publicKey = getPublicKey(decodedJWT);
+				Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
+				algorithm.verify(decodedJWT);
+			}
 		} catch (SignatureVerificationException | AlgorithmMismatchException signatureException) {
 			LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.",
 					signatureException);
@@ -204,13 +220,22 @@ public class ValidateTokenUtil {
 
 	}
 
+	private OctetKeyPair getOctetKeyPair(DecodedJWT decodedJWT) {
+		try {
+			return JWTUtils.getOctetKeyPair(certsPathUrl, decodedJWT.getKeyId());
+		} catch (IOException | ParseException | URISyntaxException e) {
+			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
+		}
+		return null;
+	}
+
 	private PublicKey getIssuerPublicKey(String keyId) {
 		try {
 
 			URI uri = new URI(certsPathUrl).normalize();
 			JwkProvider provider = new UrlJwkProvider(uri.toURL());
 			Jwk jwk = provider.get(keyId);
-			return JWTUtils.toPublicKey(jwk);
+			return jwk.getPublicKey();
 		} catch (JwkException | URISyntaxException | MalformedURLException e) {
 			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
 		}

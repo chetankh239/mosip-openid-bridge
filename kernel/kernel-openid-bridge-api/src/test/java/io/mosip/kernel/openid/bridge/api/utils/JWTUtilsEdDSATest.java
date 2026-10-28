@@ -2,182 +2,182 @@ package io.mosip.kernel.openid.bridge.api.utils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.PublicKey;
-import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.security.spec.ECGenParameterSpec;
+import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.auth0.jwk.InvalidPublicKeyException;
-import com.auth0.jwk.Jwk;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.AlgorithmMismatchException;
-import com.auth0.jwt.exceptions.SignatureGenerationException;
-import com.auth0.jwt.exceptions.SignatureVerificationException;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.Ed25519Signer;
 import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetKeyPair;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.OctetKeyPairGenerator;
 import com.nimbusds.jose.util.Base64URL;
+import com.sun.net.httpserver.HttpServer;
 
 /**
- * Verifies EdDSA signature checking, which is done by nimbus-jose-jwt because
- * java-jwt does not support it, and the loading of OKP keys from a JWKS entry.
+ * Verifies EdDSA signature checking and loading of OKP keys, which are done with
+ * nimbus-jose-jwt because java-jwt and the JWKS library do not support them.
  */
 public class JWTUtilsEdDSATest {
 
-	private static OctetKeyPair signingKey;
-	private static OctetKeyPair otherKey;
 	private static KeyPair rsaKeyPair;
-	private static KeyPair ecKeyPair;
+
+	private HttpServer server;
+	private final AtomicInteger requests = new AtomicInteger();
 
 	@BeforeClass
 	public static void init() throws Exception {
-		signingKey = new OctetKeyPairGenerator(Curve.Ed25519).keyID("signing-key").generate();
-		otherKey = new OctetKeyPairGenerator(Curve.Ed25519).keyID("other-key").generate();
 		KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA");
 		rsa.initialize(2048);
 		rsaKeyPair = rsa.generateKeyPair();
-		KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
-		ec.initialize(new ECGenParameterSpec("secp256r1"));
-		ecKeyPair = ec.generateKeyPair();
+	}
+
+	@After
+	public void stopServer() {
+		if (server != null) {
+			server.stop(0);
+		}
 	}
 
 	@Test
-	public void getVerificationAlgorithm_withValidSignature_thenPass() throws Exception {
-		DecodedJWT token = JWT.decode(sign(signingKey, "mock-user"));
-
-		JWTUtils.getVerificationAlgorithm("EdDSA", okpPublicKey(signingKey)).verify(token);
+	public void isEdDSAToken_withEdDSAToken_thenTrue() throws Exception {
+		assertTrue(JWTUtils.isEdDSAToken(JWT.decode(sign(newKey("k1"), "mock-user"))));
 	}
 
-	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withWrongKey_thenFail() throws Exception {
-		DecodedJWT token = JWT.decode(sign(signingKey, "mock-user"));
+	@Test
+	public void isEdDSAToken_withRS256Token_thenFalse() {
+		String token = JWT.create().withSubject("mock-user").sign(Algorithm.RSA256((RSAPublicKey) rsaKeyPair.getPublic(),
+				(RSAPrivateKey) rsaKeyPair.getPrivate()));
 
-		JWTUtils.getVerificationAlgorithm("EdDSA", okpPublicKey(otherKey)).verify(token);
+		assertFalse(JWTUtils.isEdDSAToken(JWT.decode(token)));
 	}
 
-	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withTamperedPayload_thenFail() throws Exception {
-		String[] original = sign(signingKey, "mock-user").split("\\.");
-		String[] other = sign(signingKey, "other-user").split("\\.");
-		DecodedJWT tampered = JWT.decode(original[0] + "." + other[1] + "." + original[2]);
+	@Test
+	public void isEdDSASignatureValid_withValidSignature_thenTrue() throws Exception {
+		OctetKeyPair key = newKey("k1");
 
-		JWTUtils.getVerificationAlgorithm("EdDSA", okpPublicKey(signingKey)).verify(tampered);
+		assertTrue(JWTUtils.isEdDSASignatureValid(JWT.decode(sign(key, "mock-user")), key.toPublicJWK()));
 	}
 
-	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withNullKey_thenFail() throws Exception {
-		DecodedJWT token = JWT.decode(sign(signingKey, "mock-user"));
-
-		JWTUtils.getVerificationAlgorithm("EdDSA", null).verify(token);
+	@Test
+	public void isEdDSASignatureValid_withWrongKey_thenFalse() throws Exception {
+		assertFalse(JWTUtils.isEdDSASignatureValid(JWT.decode(sign(newKey("k1"), "mock-user")),
+				newKey("k2").toPublicJWK()));
 	}
 
-	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withKeyOfOtherCurve_thenFail() throws Exception {
-		DecodedJWT token = JWT.decode(sign(signingKey, "mock-user"));
+	@Test
+	public void isEdDSASignatureValid_withTamperedPayload_thenFalse() throws Exception {
+		OctetKeyPair key = newKey("k1");
+		String[] original = sign(key, "mock-user").split("\\.");
+		String[] other = sign(key, "other-user").split("\\.");
+
+		assertFalse(JWTUtils.isEdDSASignatureValid(JWT.decode(original[0] + "." + other[1] + "." + original[2]),
+				key.toPublicJWK()));
+	}
+
+	@Test
+	public void isEdDSASignatureValid_withNullKey_thenFalse() throws Exception {
+		assertFalse(JWTUtils.isEdDSASignatureValid(JWT.decode(sign(newKey("k1"), "mock-user")), null));
+	}
+
+	@Test
+	public void isEdDSASignatureValid_withKeyOfOtherCurve_thenFalse() throws Exception {
 		OctetKeyPair ed448Key = new OctetKeyPair.Builder(Curve.Ed448, Base64URL.encode(new byte[57])).build();
 
-		JWTUtils.getVerificationAlgorithm("EdDSA", new OctetKeyPairPublicKey(ed448Key)).verify(token);
-	}
-
-	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withTokenOfOtherAlgorithm_thenFail() throws Exception {
-		String rs256Token = JWT.create().withSubject("mock-user").sign(
-				Algorithm.RSA256((RSAPublicKey) rsaKeyPair.getPublic(), (java.security.interfaces.RSAPrivateKey) rsaKeyPair.getPrivate()));
-
-		JWTUtils.getVerificationAlgorithm("EdDSA", okpPublicKey(signingKey)).verify(JWT.decode(rs256Token));
-	}
-
-	@Test(expected = AlgorithmMismatchException.class)
-	public void getVerificationAlgorithm_withRSAKeyForEdDSAToken_thenFail() {
-		JWTUtils.getVerificationAlgorithm("EdDSA", rsaKeyPair.getPublic());
-	}
-
-	@Test(expected = AlgorithmMismatchException.class)
-	public void getVerificationAlgorithm_withOKPKeyForRS256Token_thenFail() throws Exception {
-		JWTUtils.getVerificationAlgorithm("RS256", okpPublicKey(signingKey));
-	}
-
-	@Test(expected = SignatureGenerationException.class)
-	public void sign_thenNotSupported() throws Exception {
-		JWTUtils.getVerificationAlgorithm("EdDSA", okpPublicKey(signingKey)).sign(new byte[0]);
+		assertFalse(JWTUtils.isEdDSASignatureValid(JWT.decode(sign(newKey("k1"), "mock-user")), ed448Key));
 	}
 
 	@Test
-	public void toPublicKey_withOKPKey_thenReturnKeyThatVerifiesTokens() throws Exception {
-		PublicKey publicKey = JWTUtils.toPublicKey(Jwk.fromValues(signingKey.toPublicJWK().toJSONObject()));
+	public void isEdDSASignatureValid_withTokenOfOtherAlgorithm_thenFalse() throws Exception {
+		String rs256Token = JWT.create().withSubject("mock-user").sign(Algorithm
+				.RSA256((RSAPublicKey) rsaKeyPair.getPublic(), (RSAPrivateKey) rsaKeyPair.getPrivate()));
 
-		assertEquals("EdDSA", publicKey.getAlgorithm());
-		assertNull(publicKey.getFormat());
-		assertNull(publicKey.getEncoded());
-		JWTUtils.getVerificationAlgorithm("EdDSA", publicKey).verify(JWT.decode(sign(signingKey, "mock-user")));
+		assertFalse(JWTUtils.isEdDSASignatureValid(JWT.decode(rs256Token), newKey("k1").toPublicJWK()));
 	}
 
 	@Test
-	public void toPublicKey_withOKPKeyWithoutKeyId_thenReturnKey() throws Exception {
-		Map<String, Object> values = new HashMap<>(signingKey.toPublicJWK().toJSONObject());
-		values.remove("kid");
+	public void getOctetKeyPair_withKnownKeyId_thenReturnPublicKeyOnly() throws Exception {
+		OctetKeyPair key = newKey(UUID.randomUUID().toString());
+		String url = serveJwks(new JWKSet(key));
 
-		PublicKey publicKey = JWTUtils.toPublicKey(Jwk.fromValues(values));
+		OctetKeyPair publicKey = JWTUtils.getOctetKeyPair(url, key.getKeyID());
 
-		JWTUtils.getVerificationAlgorithm("EdDSA", publicKey).verify(JWT.decode(sign(signingKey, "mock-user")));
+		assertNotNull(publicKey);
+		assertFalse(publicKey.isPrivate());
+		assertEquals(key.getX(), publicKey.getX());
 	}
 
 	@Test
-	public void toPublicKey_withOKPKeyContainingPrivatePart_thenKeepOnlyPublicPart() throws Exception {
-		PublicKey publicKey = JWTUtils.toPublicKey(Jwk.fromValues(signingKey.toJSONObject()));
+	public void getOctetKeyPair_calledTwice_thenDownloadsOnce() throws Exception {
+		OctetKeyPair key = newKey(UUID.randomUUID().toString());
+		String url = serveJwks(new JWKSet(key));
 
-		assertFalse(((OctetKeyPairPublicKey) publicKey).getOctetKeyPair().isPrivate());
-	}
+		JWTUtils.getOctetKeyPair(url, key.getKeyID());
+		JWTUtils.getOctetKeyPair(url, key.getKeyID());
 
-	@Test(expected = InvalidPublicKeyException.class)
-	public void toPublicKey_withInvalidOKPKey_thenFail() throws Exception {
-		Map<String, Object> values = new HashMap<>(signingKey.toPublicJWK().toJSONObject());
-		values.remove("x");
-
-		JWTUtils.toPublicKey(Jwk.fromValues(values));
+		assertEquals(1, requests.get());
 	}
 
 	@Test
-	public void toPublicKey_withRSAKey_thenReturnRSAPublicKey() throws Exception {
-		RSAKey rsaKey = new RSAKey.Builder((RSAPublicKey) rsaKeyPair.getPublic()).keyID("rsa-key").build();
+	public void getOctetKeyPair_withUnknownKeyId_thenNull() throws Exception {
+		String url = serveJwks(new JWKSet(newKey(UUID.randomUUID().toString())));
 
-		PublicKey publicKey = JWTUtils.toPublicKey(Jwk.fromValues(rsaKey.toJSONObject()));
-
-		assertTrue(publicKey instanceof RSAPublicKey);
-		assertEquals(rsaKeyPair.getPublic(), publicKey);
+		assertNull(JWTUtils.getOctetKeyPair(url, "unknown"));
 	}
 
 	@Test
-	public void toPublicKey_withECKey_thenReturnECPublicKey() throws Exception {
-		ECKey ecKey = new ECKey.Builder(Curve.P_256, (ECPublicKey) ecKeyPair.getPublic()).keyID("ec-key").build();
+	public void getOctetKeyPair_withNonOKPKey_thenNull() throws Exception {
+		String kid = UUID.randomUUID().toString();
+		String url = serveJwks(new JWKSet(new RSAKey.Builder((RSAPublicKey) rsaKeyPair.getPublic()).keyID(kid).build()));
 
-		PublicKey publicKey = JWTUtils.toPublicKey(Jwk.fromValues(ecKey.toJSONObject()));
-
-		assertTrue(publicKey instanceof ECPublicKey);
-		assertEquals(ecKeyPair.getPublic(), publicKey);
+		assertNull(JWTUtils.getOctetKeyPair(url, kid));
 	}
 
-	private PublicKey okpPublicKey(OctetKeyPair key) {
-		return new OctetKeyPairPublicKey(key);
+	@Test(expected = IOException.class)
+	public void getOctetKeyPair_withUnreachableEndpoint_thenFail() throws Exception {
+		String url = serveJwks(new JWKSet());
+		server.stop(0);
+
+		JWTUtils.getOctetKeyPair(url, UUID.randomUUID().toString());
+	}
+
+	@Test(expected = ParseException.class)
+	public void getOctetKeyPair_withInvalidKeySet_thenFail() throws Exception {
+		JWTUtils.getOctetKeyPair(serve("not a key set"), UUID.randomUUID().toString());
+	}
+
+	@Test(expected = URISyntaxException.class)
+	public void getOctetKeyPair_withInvalidUrl_thenFail() throws Exception {
+		JWTUtils.getOctetKeyPair("http://invalid host/certs", UUID.randomUUID().toString());
+	}
+
+	private OctetKeyPair newKey(String keyId) throws Exception {
+		return new OctetKeyPairGenerator(Curve.Ed25519).keyID(keyId).generate();
 	}
 
 	private String sign(OctetKeyPair key, String subject) throws Exception {
@@ -187,5 +187,23 @@ public class JWTUtilsEdDSATest {
 				new Payload(claims));
 		jws.sign(new Ed25519Signer(key));
 		return jws.serialize();
+	}
+
+	private String serveJwks(JWKSet keySet) throws IOException {
+		return serve(keySet.toString());
+	}
+
+	private String serve(String body) throws IOException {
+		server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		server.createContext("/certs", exchange -> {
+			requests.incrementAndGet();
+			byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			exchange.sendResponseHeaders(200, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
+		});
+		server.start();
+		return "http://127.0.0.1:" + server.getAddress().getPort() + "/certs";
 	}
 }

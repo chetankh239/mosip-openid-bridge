@@ -7,6 +7,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.PublicKey;
+import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.nimbusds.jose.jwk.OctetKeyPair;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -162,9 +164,17 @@ public class ValidateTokenHelper {
 
 		// Third, signature validation.
 		try {
-			String tokenAlgo = decodedJWT.getAlgorithm();
-			Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
-			algorithm.verify(decodedJWT);
+			if (JWTUtils.isEdDSAToken(decodedJWT)) {
+				// java-jwt does not support EdDSA, so it is verified with nimbus-jose-jwt.
+				if (!JWTUtils.isEdDSASignatureValid(decodedJWT, getOctetKeyPair(decodedJWT))) {
+					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
+					return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
+				}
+			} else {
+				String tokenAlgo = decodedJWT.getAlgorithm();
+				Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
+				algorithm.verify(decodedJWT);
+			}
 		} catch (SignatureVerificationException | AlgorithmMismatchException signatureException) {
 			LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName,
 					signatureException);
@@ -221,6 +231,11 @@ public class ValidateTokenHelper {
 		String userName = decodedJWT.getClaim(AuthAdapterConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
+		if (JWTUtils.isEdDSAToken(decodedJWT)) {
+			// EdDSA keys are not PublicKey objects, see getOctetKeyPair.
+			return null;
+		}
+
 		String keyId = decodedJWT.getKeyId();
 		PublicKey publicKey = publicKeys.get(keyId);
 
@@ -234,6 +249,18 @@ public class ValidateTokenHelper {
 			publicKeys.put(keyId, publicKey);
 		}
 		return publicKey;
+	}
+
+	private OctetKeyPair getOctetKeyPair(DecodedJWT decodedJWT) {
+		String certsUrIPath = (certsUrl == null || certsUrl.isEmpty())
+				? issuerInternalURI + getRealM(decodedJWT) + certsPath
+				: certsUrl;
+		try {
+			return JWTUtils.getOctetKeyPair(certsUrIPath, decodedJWT.getKeyId());
+		} catch (IOException | ParseException | URISyntaxException e) {
+			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
+		}
+		return null;
 	}
 
 	private String getRealM(DecodedJWT decodedJWT) {
@@ -251,7 +278,7 @@ public class ValidateTokenHelper {
 			URI uri = new URI(certsUrIPath).normalize();
 			JwkProvider provider = new UrlJwkProvider(uri.toURL());
 			Jwk jwk = provider.get(keyId);
-			return JWTUtils.toPublicKey(jwk);
+			return jwk.getPublicKey();
 		} catch (JwkException | URISyntaxException | MalformedURLException e) {
 			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
 		}

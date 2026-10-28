@@ -6,6 +6,9 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.Charset;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PublicKey;
@@ -20,9 +23,11 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,7 +46,6 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestBodyUriSpec;
 
-import com.auth0.jwk.Jwk;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +55,7 @@ import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.Ed25519Signer;
 import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetKeyPair;
 import com.nimbusds.jose.jwk.gen.OctetKeyPairGenerator;
 
@@ -58,8 +63,8 @@ import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
 import io.mosip.kernel.auth.defaultadapter.exception.AuthManagerException;
 import io.mosip.kernel.auth.defaultadapter.helper.ValidateTokenHelper;
-import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
+import com.sun.net.httpserver.HttpServer;
 import reactor.core.publisher.Mono;
 
 @SpringBootTest(classes = { AuthTestBootApplication.class })
@@ -92,6 +97,8 @@ public class ValidateTokenHelperTest {
 
 	@Autowired
 	private ValidateTokenHelper validateTokenHelper;
+
+	private HttpServer server;
 
 	private RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
 	private WebClient webClient = Mockito.mock(WebClient.class);
@@ -454,34 +461,84 @@ public class ValidateTokenHelperTest {
 
 	@Test
 	public void isTokenValid_withEdDSAAlgo_thenPass() throws Exception {
-		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
+		OctetKeyPair okp = newEdDSAKey();
 
-		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper
-				.isTokenValid(JWT.decode(signedEdDSAToken(okp)), JWTUtils.toPublicKey(Jwk.fromValues(okp.toPublicJWK().toJSONObject())));
-		assertThat(res.left, is(true));
+		assertThat(isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(okp)).left, is(true));
 	}
 
 	@Test
 	public void isTokenValid_withEdDSATokenAndWrongKey_thenUnauthorized() throws Exception {
-		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
-		OctetKeyPair otherOkp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("other-key").generate();
+		OctetKeyPair okp = newEdDSAKey();
+		OctetKeyPair wrongKey = new OctetKeyPairGenerator(Curve.Ed25519).keyID(okp.getKeyID()).generate();
 
-		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(
-				JWT.decode(signedEdDSAToken(okp)),
-				JWTUtils.toPublicKey(Jwk.fromValues(otherOkp.toPublicJWK().toJSONObject())));
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(wrongKey));
 		assertThat(res.left, is(false));
 		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
 	}
 
 	@Test
-	public void isTokenValid_withEdDSATokenAndRSAKey_thenUnauthorized() throws Exception {
-		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
-		KeyPair rsaKp = generateKeyPair("RSA", 2048);
+	public void isTokenValid_withEdDSATokenAndUnknownKeyId_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = newEdDSAKey();
+		OctetKeyPair otherKey = newEdDSAKey();
 
-		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(
-				JWT.decode(signedEdDSAToken(okp)), rsaKp.getPublic());
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(otherKey));
 		assertThat(res.left, is(false));
 		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withEdDSATokenAndUnreachableCertsEndpoint_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = newEdDSAKey();
+		String token = signedEdDSAToken(okp);
+		String certsUrlOfStoppedServer = startJwksServer(new JWKSet(okp));
+		server.stop(0);
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithCertsUrl(token, certsUrlOfStoppedServer);
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void getPublicKey_withEdDSAToken_thenNullWithoutDownloadingKey() throws Exception {
+		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedEdDSAToken(newEdDSAKey()))));
+	}
+
+	@After
+	public void stopJwksServer() {
+		if (server != null) {
+			server.stop(0);
+		}
+	}
+
+	private OctetKeyPair newEdDSAKey() throws Exception {
+		return new OctetKeyPairGenerator(Curve.Ed25519).keyID(UUID.randomUUID().toString()).generate();
+	}
+
+	private ImmutablePair<Boolean, AuthAdapterErrorCode> isEdDSATokenValid(String token, JWKSet keySet) throws Exception {
+		return isTokenValidWithCertsUrl(token, startJwksServer(keySet));
+	}
+
+	private ImmutablePair<Boolean, AuthAdapterErrorCode> isTokenValidWithCertsUrl(String token, String url) {
+		Object originalCertsUrl = ReflectionTestUtils.getField(validateTokenHelper, "certsUrl");
+		ReflectionTestUtils.setField(validateTokenHelper, "certsUrl", url);
+		try {
+			return validateTokenHelper.isTokenValid(JWT.decode(token), null);
+		} finally {
+			ReflectionTestUtils.setField(validateTokenHelper, "certsUrl", originalCertsUrl);
+		}
+	}
+
+	private String startJwksServer(JWKSet keySet) throws IOException {
+		server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		server.createContext("/certs", exchange -> {
+			byte[] bytes = keySet.toString().getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			exchange.sendResponseHeaders(200, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
+		});
+		server.start();
+		return "http://127.0.0.1:" + server.getAddress().getPort() + "/certs";
 	}
 
 	private String signedEdDSAToken(OctetKeyPair okp) throws Exception {
