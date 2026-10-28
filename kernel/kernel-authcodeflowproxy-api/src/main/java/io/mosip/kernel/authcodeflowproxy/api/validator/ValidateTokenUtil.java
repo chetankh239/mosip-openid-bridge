@@ -29,7 +29,8 @@ import com.auth0.jwk.JwkProvider;
 import com.auth0.jwk.UrlJwkProvider;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.exceptions.AlgorithmMismatchException;
+import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
@@ -193,7 +194,7 @@ public class ValidateTokenUtil {
 			PublicKey publicKey = getPublicKey(decodedJWT);
 			Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
 			algorithm.verify(decodedJWT);
-		} catch (JWTVerificationException signatureException) {
+		} catch (SignatureVerificationException | AlgorithmMismatchException signatureException) {
 			LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.",
 					signatureException);
 			return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
