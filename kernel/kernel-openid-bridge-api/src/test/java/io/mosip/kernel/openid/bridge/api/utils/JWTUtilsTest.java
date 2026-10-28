@@ -36,7 +36,7 @@ public class JWTUtilsTest {
 	public void getVerificationAlgorithm_withUnknownAlgorithm_thenFallbackToRS256() {
 		DecodedJWT decodedJWT = JWT.decode(token);
 
-		JWTUtils.getVerificationAlgorithm("EdDSA", keyPair.getPublic()).verify(decodedJWT);
+		JWTUtils.getVerificationAlgorithm("unknown", keyPair.getPublic()).verify(decodedJWT);
 	}
 
 	@Test

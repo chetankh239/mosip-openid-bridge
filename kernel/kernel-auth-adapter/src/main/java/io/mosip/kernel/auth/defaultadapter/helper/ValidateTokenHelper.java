@@ -251,7 +251,7 @@ public class ValidateTokenHelper {
 			URI uri = new URI(certsUrIPath).normalize();
 			JwkProvider provider = new UrlJwkProvider(uri.toURL());
 			Jwk jwk = provider.get(keyId);
-			return jwk.getPublicKey();
+			return JWTUtils.toPublicKey(jwk);
 		} catch (JwkException | URISyntaxException | MalformedURLException e) {
 			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
 		}

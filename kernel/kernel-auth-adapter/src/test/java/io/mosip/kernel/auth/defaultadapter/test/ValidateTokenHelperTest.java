@@ -41,14 +41,24 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestBodyUriSpec;
 
+import com.auth0.jwk.Jwk;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.Ed25519Signer;
+import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.OctetKeyPair;
+import com.nimbusds.jose.jwk.gen.OctetKeyPairGenerator;
 
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
 import io.mosip.kernel.auth.defaultadapter.exception.AuthManagerException;
 import io.mosip.kernel.auth.defaultadapter.helper.ValidateTokenHelper;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
 import reactor.core.publisher.Mono;
 
@@ -440,6 +450,53 @@ public class ValidateTokenHelperTest {
 
 		assertThat(user.getRole(), is("ADMIN"));
 		assertThat(user.getName(), is("mock-user"));
+	}
+
+	@Test
+	public void isTokenValid_withEdDSAAlgo_thenPass() throws Exception {
+		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper
+				.isTokenValid(JWT.decode(signedEdDSAToken(okp)), JWTUtils.toPublicKey(Jwk.fromValues(okp.toPublicJWK().toJSONObject())));
+		assertThat(res.left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withEdDSATokenAndWrongKey_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
+		OctetKeyPair otherOkp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("other-key").generate();
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(
+				JWT.decode(signedEdDSAToken(okp)),
+				JWTUtils.toPublicKey(Jwk.fromValues(otherOkp.toPublicJWK().toJSONObject())));
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withEdDSATokenAndRSAKey_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = new OctetKeyPairGenerator(Curve.Ed25519).keyID("ed-key").generate();
+		KeyPair rsaKp = generateKeyPair("RSA", 2048);
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(
+				JWT.decode(signedEdDSAToken(okp)), rsaKp.getPublic());
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	private String signedEdDSAToken(OctetKeyPair okp) throws Exception {
+		Map<String, Object> claims = new HashMap<>();
+		claims.put(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user");
+		claims.put(AuthAdapterConstant.AZP, "account");
+		claims.put(AuthAdapterConstant.ISSUER, "https://iam.mosip.net/auth/realms/");
+		claims.put("sub", "mock-user");
+		claims.put("aud", "account");
+		claims.put("iat", Instant.now().getEpochSecond());
+		claims.put("exp", Instant.now().plusSeconds(345600).getEpochSecond());
+		JWSObject jws = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.EdDSA).keyID(okp.getKeyID()).build(),
+				new Payload(claims));
+		jws.sign(new Ed25519Signer(okp));
+		return jws.serialize();
 	}
 
 	private KeyPair generateKeyPair(String algorithm, int size) throws Exception {
