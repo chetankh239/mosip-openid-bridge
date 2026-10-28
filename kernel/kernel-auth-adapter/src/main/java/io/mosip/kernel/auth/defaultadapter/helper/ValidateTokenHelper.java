@@ -46,7 +46,7 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.nimbusds.jose.jwk.OctetKeyPair;
+import com.nimbusds.jose.jwk.JWK;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -164,9 +164,9 @@ public class ValidateTokenHelper {
 
 		// Third, signature validation.
 		try {
-			if (JWTUtils.isEdDSAToken(decodedJWT)) {
-				// java-jwt does not support EdDSA, so it is verified with nimbus-jose-jwt.
-				if (!JWTUtils.isEdDSASignatureValid(decodedJWT, getOctetKeyPair(decodedJWT))) {
+			if (JWTUtils.isNimbusToken(decodedJWT)) {
+				// java-jwt does not support Ed25519 and ES256K, so they are verified with nimbus-jose-jwt.
+				if (!JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT))) {
 					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
 					return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
 				}
@@ -231,8 +231,8 @@ public class ValidateTokenHelper {
 		String userName = decodedJWT.getClaim(AuthAdapterConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
-		if (JWTUtils.isEdDSAToken(decodedJWT)) {
-			// EdDSA keys are not PublicKey objects, see getOctetKeyPair.
+		if (JWTUtils.isNimbusToken(decodedJWT)) {
+			// Ed25519 and ES256K keys are not read by the JWKS library, see getPublicJWK.
 			return null;
 		}
 
@@ -251,12 +251,12 @@ public class ValidateTokenHelper {
 		return publicKey;
 	}
 
-	private OctetKeyPair getOctetKeyPair(DecodedJWT decodedJWT) {
+	private JWK getPublicJWK(DecodedJWT decodedJWT) {
 		String certsUrIPath = (certsUrl == null || certsUrl.isEmpty())
 				? issuerInternalURI + getRealM(decodedJWT) + certsPath
 				: certsUrl;
 		try {
-			return JWTUtils.getOctetKeyPair(certsUrIPath, decodedJWT.getKeyId());
+			return JWTUtils.getPublicJWK(certsUrIPath, decodedJWT.getKeyId());
 		} catch (IOException | ParseException | URISyntaxException e) {
 			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
 		}

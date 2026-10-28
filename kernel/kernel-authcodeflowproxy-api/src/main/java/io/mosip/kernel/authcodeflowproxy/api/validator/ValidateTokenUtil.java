@@ -35,7 +35,7 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.nimbusds.jose.jwk.OctetKeyPair;
+import com.nimbusds.jose.jwk.JWK;
 
 import io.mosip.kernel.core.util.DateUtils2;
 import io.mosip.kernel.core.util.EmptyCheckUtils;
@@ -175,8 +175,8 @@ public class ValidateTokenUtil {
 		String userName = decodedJWT.getClaim(AuthConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
-		if (JWTUtils.isEdDSAToken(decodedJWT)) {
-			// EdDSA keys are not PublicKey objects, see getOctetKeyPair.
+		if (JWTUtils.isNimbusToken(decodedJWT)) {
+			// Ed25519 and ES256K keys are not read by the JWKS library, see getPublicJWK.
 			return null;
 		}
 
@@ -198,9 +198,9 @@ public class ValidateTokenUtil {
 	 */
 	public ImmutablePair<Boolean, AuthErrorCode> verifyJWTSignagure(DecodedJWT decodedJWT) {
 		try {
-			if (JWTUtils.isEdDSAToken(decodedJWT)) {
-				// java-jwt does not support EdDSA, so it is verified with nimbus-jose-jwt.
-				if (!JWTUtils.isEdDSASignatureValid(decodedJWT, getOctetKeyPair(decodedJWT))) {
+			if (JWTUtils.isNimbusToken(decodedJWT)) {
+				// java-jwt does not support Ed25519 and ES256K, so they are verified with nimbus-jose-jwt.
+				if (!JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT))) {
 					LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.");
 					return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
 				}
@@ -220,9 +220,9 @@ public class ValidateTokenUtil {
 
 	}
 
-	private OctetKeyPair getOctetKeyPair(DecodedJWT decodedJWT) {
+	private JWK getPublicJWK(DecodedJWT decodedJWT) {
 		try {
-			return JWTUtils.getOctetKeyPair(certsPathUrl, decodedJWT.getKeyId());
+			return JWTUtils.getPublicJWK(certsPathUrl, decodedJWT.getKeyId());
 		} catch (IOException | ParseException | URISyntaxException e) {
 			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
 		}

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
+import java.security.Provider;
 import java.security.KeyPairGenerator;
 import java.security.PublicKey;
 import java.security.interfaces.ECPrivateKey;
@@ -53,11 +54,16 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.Ed25519Signer;
 import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetKeyPair;
+import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jose.jwk.gen.OctetKeyPairGenerator;
+import com.nimbusds.jose.util.Base64URL;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
@@ -97,6 +103,8 @@ public class ValidateTokenHelperTest {
 
 	@Autowired
 	private ValidateTokenHelper validateTokenHelper;
+
+	private static final Provider BC = new BouncyCastleProvider();
 
 	private HttpServer server;
 
@@ -460,36 +468,53 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withEdDSAAlgo_thenPass() throws Exception {
-		OctetKeyPair okp = newEdDSAKey();
+	public void isTokenValid_withEd25519Algo_thenPass() throws Exception {
+		OctetKeyPair okp = newEd25519Key();
 
-		assertThat(isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(okp)).left, is(true));
+		assertThat(isTokenValidWithKeySet(signedEd25519Token(okp), new JWKSet(okp)).left, is(true));
 	}
 
 	@Test
-	public void isTokenValid_withEdDSATokenAndWrongKey_thenUnauthorized() throws Exception {
-		OctetKeyPair okp = newEdDSAKey();
+	public void isTokenValid_withES256KAlgo_thenPass() throws Exception {
+		ECKey ecKey = newES256KKey();
+
+		assertThat(isTokenValidWithKeySet(signedES256KToken(ecKey), new JWKSet(ecKey)).left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withEd25519TokenAndWrongKey_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = newEd25519Key();
 		OctetKeyPair wrongKey = new OctetKeyPairGenerator(Curve.Ed25519).keyID(okp.getKeyID()).generate();
 
-		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(wrongKey));
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithKeySet(signedEd25519Token(okp),
+				new JWKSet(wrongKey));
 		assertThat(res.left, is(false));
 		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
 	}
 
 	@Test
-	public void isTokenValid_withEdDSATokenAndUnknownKeyId_thenUnauthorized() throws Exception {
-		OctetKeyPair okp = newEdDSAKey();
-		OctetKeyPair otherKey = newEdDSAKey();
+	public void isTokenValid_withES256KTokenAndWrongKey_thenUnauthorized() throws Exception {
+		ECKey ecKey = newES256KKey();
+		ECKey wrongKey = new ECKeyGenerator(Curve.SECP256K1).provider(BC).keyID(ecKey.getKeyID()).generate();
 
-		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isEdDSATokenValid(signedEdDSAToken(okp), new JWKSet(otherKey));
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithKeySet(signedES256KToken(ecKey),
+				new JWKSet(wrongKey));
 		assertThat(res.left, is(false));
 		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
 	}
 
 	@Test
-	public void isTokenValid_withEdDSATokenAndUnreachableCertsEndpoint_thenUnauthorized() throws Exception {
-		OctetKeyPair okp = newEdDSAKey();
-		String token = signedEdDSAToken(okp);
+	public void isTokenValid_withEd25519TokenAndUnknownKeyId_thenUnauthorized() throws Exception {
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithKeySet(signedEd25519Token(newEd25519Key()),
+				new JWKSet(newEd25519Key()));
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withEd25519TokenAndUnreachableCertsEndpoint_thenUnauthorized() throws Exception {
+		OctetKeyPair okp = newEd25519Key();
+		String token = signedEd25519Token(okp);
 		String certsUrlOfStoppedServer = startJwksServer(new JWKSet(okp));
 		server.stop(0);
 
@@ -499,8 +524,13 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void getPublicKey_withEdDSAToken_thenNullWithoutDownloadingKey() throws Exception {
-		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedEdDSAToken(newEdDSAKey()))));
+	public void getPublicKey_withEd25519Token_thenNullWithoutDownloadingKey() throws Exception {
+		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedEd25519Token(newEd25519Key()))));
+	}
+
+	@Test
+	public void getPublicKey_withES256KToken_thenNullWithoutDownloadingKey() throws Exception {
+		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedES256KToken(newES256KKey()))));
 	}
 
 	@After
@@ -510,11 +540,15 @@ public class ValidateTokenHelperTest {
 		}
 	}
 
-	private OctetKeyPair newEdDSAKey() throws Exception {
+	private OctetKeyPair newEd25519Key() throws Exception {
 		return new OctetKeyPairGenerator(Curve.Ed25519).keyID(UUID.randomUUID().toString()).generate();
 	}
 
-	private ImmutablePair<Boolean, AuthAdapterErrorCode> isEdDSATokenValid(String token, JWKSet keySet) throws Exception {
+	private ECKey newES256KKey() throws Exception {
+		return new ECKeyGenerator(Curve.SECP256K1).provider(BC).keyID(UUID.randomUUID().toString()).generate();
+	}
+
+	private ImmutablePair<Boolean, AuthAdapterErrorCode> isTokenValidWithKeySet(String token, JWKSet keySet) throws Exception {
 		return isTokenValidWithCertsUrl(token, startJwksServer(keySet));
 	}
 
@@ -541,7 +575,7 @@ public class ValidateTokenHelperTest {
 		return "http://127.0.0.1:" + server.getAddress().getPort() + "/certs";
 	}
 
-	private String signedEdDSAToken(OctetKeyPair okp) throws Exception {
+	private Map<String, Object> tokenClaims() {
 		Map<String, Object> claims = new HashMap<>();
 		claims.put(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user");
 		claims.put(AuthAdapterConstant.AZP, "account");
@@ -550,9 +584,24 @@ public class ValidateTokenHelperTest {
 		claims.put("aud", "account");
 		claims.put("iat", Instant.now().getEpochSecond());
 		claims.put("exp", Instant.now().plusSeconds(345600).getEpochSecond());
-		JWSObject jws = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.EdDSA).keyID(okp.getKeyID()).build(),
-				new Payload(claims));
-		jws.sign(new Ed25519Signer(okp));
+		return claims;
+	}
+
+	/** Nimbus cannot sign with the Ed25519 name, so the token is built by hand. */
+	private String signedEd25519Token(OctetKeyPair okp) throws Exception {
+		String header = Base64URL.encode("{\"alg\":\"Ed25519\",\"kid\":\"" + okp.getKeyID() + "\"}").toString();
+		String payload = new Payload(tokenClaims()).toBase64URL().toString();
+		Base64URL signature = new Ed25519Signer(okp).sign(new JWSHeader(JWSAlgorithm.EdDSA),
+				(header + "." + payload).getBytes(StandardCharsets.US_ASCII));
+		return header + "." + payload + "." + signature;
+	}
+
+	private String signedES256KToken(ECKey ecKey) throws Exception {
+		JWSObject jws = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.ES256K).keyID(ecKey.getKeyID()).build(),
+				new Payload(tokenClaims()));
+		ECDSASigner signer = new ECDSASigner(ecKey);
+		signer.getJCAContext().setProvider(BC);
+		jws.sign(signer);
 		return jws.serialize();
 	}
 

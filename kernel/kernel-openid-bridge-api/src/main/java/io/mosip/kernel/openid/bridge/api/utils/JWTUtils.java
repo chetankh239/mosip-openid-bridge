@@ -3,7 +3,9 @@ package io.mosip.kernel.openid.bridge.api.utils;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.security.Provider;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
@@ -17,11 +19,17 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jose.crypto.Ed25519Verifier;
+import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetKeyPair;
+import com.nimbusds.jose.util.Base64URL;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class JWTUtils {
 	
@@ -29,11 +37,14 @@ public class JWTUtils {
 		
 	}
 
-	private static final String EDDSA_ALGORITHM = "EdDSA";
+	private static final String ED25519_ALGORITHM = "Ed25519";
+	private static final String ES256K_ALGORITHM = "ES256K";
 	private static final int JWKS_TIMEOUT_MS = 5000;
 	private static final int JWKS_SIZE_LIMIT = 51200;
 
-	private static final Map<String, OctetKeyPair> octetKeyPairCache = new ConcurrentHashMap<>();
+	private static final Provider BOUNCY_CASTLE = new BouncyCastleProvider();
+
+	private static final Map<String, JWK> publicJWKCache = new ConcurrentHashMap<>();
 
 	static Map<String,DecodedJWT> decodedJWTCache = new HashMap<>();
 	
@@ -55,8 +66,9 @@ public class JWTUtils {
 	/**
 	 * Returns the algorithm used to verify a token signature, based on the
 	 * {@code alg} header of the token. Supports RS256/384/512, PS256/384/512 and
-	 * ES256/384/512. Any other (or missing) algorithm falls back to RS256. EdDSA is
-	 * not supported by java-jwt, see {@link #isEdDSASignatureValid}.
+	 * ES256/384/512. Any other (or missing) algorithm falls back to RS256.
+	 * Ed25519 and ES256K are not supported by java-jwt, see
+	 * {@link #isNimbusSignatureValid}.
 	 *
 	 * @param tokenAlgo the {@code alg} header value of the token
 	 * @param publicKey the public key used to verify the signature
@@ -81,59 +93,76 @@ public class JWTUtils {
 	}
 
 	/**
-	 * Tells whether the token is signed with EdDSA, which java-jwt does not
-	 * support. Such tokens are verified with {@link #isEdDSASignatureValid}.
+	 * Tells whether the token is signed with an algorithm that java-jwt does not
+	 * support (Ed25519 or ES256K). Such tokens are verified with
+	 * {@link #isNimbusSignatureValid}.
 	 *
 	 * @param decodedJWT the decoded token
-	 * @return true if the {@code alg} header of the token is EdDSA
+	 * @return true if the {@code alg} header of the token is Ed25519 or ES256K
 	 */
-	public static boolean isEdDSAToken(DecodedJWT decodedJWT) {
-		return EDDSA_ALGORITHM.equals(decodedJWT.getAlgorithm());
+	public static boolean isNimbusToken(DecodedJWT decodedJWT) {
+		String algorithm = decodedJWT.getAlgorithm();
+		return ED25519_ALGORITHM.equals(algorithm) || ES256K_ALGORITHM.equals(algorithm);
 	}
 
 	/**
-	 * Reads an OKP key (for example Ed25519) from a JWKS endpoint with
-	 * nimbus-jose-jwt, because the JWKS library used for RSA and EC keys cannot
-	 * build OKP keys. Found keys are cached.
+	 * Reads the public key of a JWKS entry with nimbus-jose-jwt, for the algorithms
+	 * java-jwt does not support. The JWKS library used for RSA and EC keys cannot
+	 * build OKP keys (Ed25519) or secp256k1 keys (ES256K). Found keys are cached.
 	 *
 	 * @param certsUrl the JWKS endpoint
 	 * @param keyId    the {@code kid} of the key
-	 * @return the public key, or null if the endpoint has no OKP key with this id
+	 * @return the public key, or null if the endpoint has no key with this id
 	 * @throws IOException        if the endpoint cannot be read
 	 * @throws ParseException     if the endpoint does not return a valid key set
 	 * @throws URISyntaxException if the endpoint is not a valid URI
 	 */
-	public static OctetKeyPair getOctetKeyPair(String certsUrl, String keyId)
+	public static JWK getPublicJWK(String certsUrl, String keyId)
 			throws IOException, ParseException, URISyntaxException {
 		String cacheKey = certsUrl + "#" + keyId;
-		OctetKeyPair publicKey = octetKeyPairCache.get(cacheKey);
+		JWK publicKey = publicJWKCache.get(cacheKey);
 		if (publicKey == null) {
 			JWK jwk = JWKSet.load(new URI(certsUrl).normalize().toURL(), JWKS_TIMEOUT_MS, JWKS_TIMEOUT_MS,
 					JWKS_SIZE_LIMIT).getKeyByKeyId(keyId);
-			if (jwk instanceof OctetKeyPair octetKeyPair) {
-				publicKey = octetKeyPair.toPublicJWK();
-				octetKeyPairCache.put(cacheKey, publicKey);
+			if (jwk != null) {
+				publicKey = jwk.toPublicJWK();
+				publicJWKCache.put(cacheKey, publicKey);
 			}
 		}
 		return publicKey;
 	}
 
 	/**
-	 * Verifies the signature of an EdDSA token with nimbus-jose-jwt, because
-	 * java-jwt does not support EdDSA.
+	 * Verifies the signature of an Ed25519 or ES256K token with nimbus-jose-jwt,
+	 * because java-jwt does not support these algorithms. Nimbus knows Ed25519 by
+	 * its older name EdDSA, which is only used to pick the verifier. The signature
+	 * is checked over the original token.
 	 *
 	 * @param decodedJWT the decoded token
 	 * @param publicKey  the public key to verify with
-	 * @return true only if the signature is valid. A missing key, a key that is
-	 *         not Ed25519 or a malformed token give false.
+	 * @return true only if the signature is valid. A missing key, a key of the
+	 *         wrong type or curve, or an unsupported algorithm give false.
 	 */
-	public static boolean isEdDSASignatureValid(DecodedJWT decodedJWT, OctetKeyPair publicKey) {
-		if (publicKey == null) {
-			return false;
-		}
+	public static boolean isNimbusSignatureValid(DecodedJWT decodedJWT, JWK publicKey) {
 		try {
-			return JWSObject.parse(decodedJWT.getToken()).verify(new Ed25519Verifier(publicKey));
-		} catch (ParseException | JOSEException e) {
+			JWSVerifier verifier;
+			JWSAlgorithm algorithm;
+			if (ED25519_ALGORITHM.equals(decodedJWT.getAlgorithm()) && publicKey instanceof OctetKeyPair octetKeyPair) {
+				verifier = new Ed25519Verifier(octetKeyPair);
+				algorithm = JWSAlgorithm.EdDSA;
+			} else if (ES256K_ALGORITHM.equals(decodedJWT.getAlgorithm()) && publicKey instanceof ECKey ecKey) {
+				ECDSAVerifier ecdsaVerifier = new ECDSAVerifier(ecKey);
+				// the JDK has no secp256k1 curve
+				ecdsaVerifier.getJCAContext().setProvider(BOUNCY_CASTLE);
+				verifier = ecdsaVerifier;
+				algorithm = JWSAlgorithm.ES256K;
+			} else {
+				return false;
+			}
+			byte[] signingInput = (decodedJWT.getHeader() + "." + decodedJWT.getPayload())
+					.getBytes(StandardCharsets.US_ASCII);
+			return verifier.verify(new JWSHeader(algorithm), signingInput, new Base64URL(decodedJWT.getSignature()));
+		} catch (JOSEException e) {
 			return false;
 		}
 	}
