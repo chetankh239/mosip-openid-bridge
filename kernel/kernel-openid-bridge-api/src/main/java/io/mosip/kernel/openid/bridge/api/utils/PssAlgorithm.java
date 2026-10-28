@@ -15,42 +15,28 @@ import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
 /**
- * Verification only {@link Algorithm} for the RSASSA-PSS based JWS algorithms
- * (PS256, PS384 and PS512), which java-jwt does not provide. Throws
- * {@link SignatureVerificationException} like the other algorithms, so callers
- * can handle it in the same way.
+ * Verification only {@link Algorithm} for PS256, which java-jwt 3.8.1 does not
+ * provide. Throws {@link SignatureVerificationException} like the RSA
+ * algorithms, so callers handle it in the same way.
  */
 public class PssAlgorithm extends Algorithm {
 
 	private final PublicKey publicKey;
-	private final PSSParameterSpec parameters;
 
-	private PssAlgorithm(String name, PSSParameterSpec parameters, PublicKey publicKey) {
-		super(name, "RSASSA-PSS using " + parameters.getDigestAlgorithm() + " and MGF1");
+	private PssAlgorithm(PublicKey publicKey) {
+		super("PS256", "RSASSA-PSS using SHA-256 and MGF1");
 		this.publicKey = publicKey;
-		this.parameters = parameters;
 	}
 
 	public static Algorithm PS256(PublicKey publicKey) {
-		return new PssAlgorithm("PS256", new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1),
-				publicKey);
-	}
-
-	public static Algorithm PS384(PublicKey publicKey) {
-		return new PssAlgorithm("PS384", new PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1),
-				publicKey);
-	}
-
-	public static Algorithm PS512(PublicKey publicKey) {
-		return new PssAlgorithm("PS512", new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1),
-				publicKey);
+		return new PssAlgorithm(publicKey);
 	}
 
 	@Override
 	public void verify(DecodedJWT jwt) throws SignatureVerificationException {
 		try {
 			Signature signature = Signature.getInstance("RSASSA-PSS");
-			signature.setParameter(parameters);
+			signature.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
 			signature.initVerify(publicKey);
 			signature.update((jwt.getHeader() + "." + jwt.getPayload()).getBytes(US_ASCII));
 			if (!signature.verify(Base64.getUrlDecoder().decode(jwt.getSignature()))) {

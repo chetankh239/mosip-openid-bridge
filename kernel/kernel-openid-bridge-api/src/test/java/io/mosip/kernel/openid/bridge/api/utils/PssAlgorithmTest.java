@@ -30,36 +30,25 @@ public class PssAlgorithmTest {
 
 	@Test
 	public void validPs256TokenVerifies() throws Exception {
-		PssAlgorithm.PS256(keyPair.getPublic()).verify(JWT.decode(token("PS256", keyPair, "{\"sub\":\"user\"}")));
-	}
-
-	@Test
-	public void validPs384AndPs512TokensVerify() throws Exception {
-		PssAlgorithm.PS384(keyPair.getPublic()).verify(JWT.decode(token("PS384", keyPair, "{\"sub\":\"user\"}")));
-		PssAlgorithm.PS512(keyPair.getPublic()).verify(JWT.decode(token("PS512", keyPair, "{\"sub\":\"user\"}")));
+		PssAlgorithm.PS256(keyPair.getPublic()).verify(JWT.decode(token(keyPair, "{\"sub\":\"user\"}")));
 	}
 
 	@Test(expected = SignatureVerificationException.class)
 	public void tokenSignedWithAnotherKeyIsRejected() throws Exception {
-		PssAlgorithm.PS256(keyPair.getPublic()).verify(JWT.decode(token("PS256", newKeyPair(), "{\"sub\":\"user\"}")));
+		PssAlgorithm.PS256(keyPair.getPublic()).verify(JWT.decode(token(newKeyPair(), "{\"sub\":\"user\"}")));
 	}
 
 	@Test(expected = SignatureVerificationException.class)
 	public void tamperedPayloadIsRejected() throws Exception {
-		String[] parts = token("PS256", keyPair, "{\"sub\":\"user\"}").split("\\.");
+		String[] parts = token(keyPair, "{\"sub\":\"user\"}").split("\\.");
 		DecodedJWT tampered = JWT
 				.decode(parts[0] + "." + ENCODER.encodeToString("{\"sub\":\"admin\"}".getBytes(UTF_8)) + "." + parts[2]);
 		PssAlgorithm.PS256(keyPair.getPublic()).verify(tampered);
 	}
 
 	@Test(expected = SignatureVerificationException.class)
-	public void differentHashAlgorithmIsRejected() throws Exception {
-		PssAlgorithm.PS384(keyPair.getPublic()).verify(JWT.decode(token("PS256", keyPair, "{\"sub\":\"user\"}")));
-	}
-
-	@Test(expected = SignatureVerificationException.class)
 	public void missingPublicKeyIsRejected() throws Exception {
-		PssAlgorithm.PS256(null).verify(JWT.decode(token("PS256", keyPair, "{\"sub\":\"user\"}")));
+		PssAlgorithm.PS256(null).verify(JWT.decode(token(keyPair, "{\"sub\":\"user\"}")));
 	}
 
 	@Test(expected = SignatureGenerationException.class)
@@ -73,22 +62,11 @@ public class PssAlgorithmTest {
 		return generator.generateKeyPair();
 	}
 
-	private String token(String algorithm, KeyPair signingKeys, String payload) throws Exception {
-		String signingInput = ENCODER.encodeToString(("{\"alg\":\"" + algorithm + "\",\"kid\":\"k\"}").getBytes(UTF_8))
-				+ "." + ENCODER.encodeToString(payload.getBytes(UTF_8));
-		PSSParameterSpec spec;
-		switch (algorithm) {
-		case "PS384":
-			spec = new PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1);
-			break;
-		case "PS512":
-			spec = new PSSParameterSpec("SHA-512", "MGF1", MGF1ParameterSpec.SHA512, 64, 1);
-			break;
-		default:
-			spec = new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
-		}
+	private String token(KeyPair signingKeys, String payload) throws Exception {
+		String signingInput = ENCODER.encodeToString("{\"alg\":\"PS256\",\"kid\":\"k\"}".getBytes(UTF_8)) + "."
+				+ ENCODER.encodeToString(payload.getBytes(UTF_8));
 		Signature signature = Signature.getInstance("RSASSA-PSS");
-		signature.setParameter(spec);
+		signature.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
 		signature.initSign(signingKeys.getPrivate());
 		signature.update(signingInput.getBytes(UTF_8));
 		return signingInput + "." + ENCODER.encodeToString(signature.sign());

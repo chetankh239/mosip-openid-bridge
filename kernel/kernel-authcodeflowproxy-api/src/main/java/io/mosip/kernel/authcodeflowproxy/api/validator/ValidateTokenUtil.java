@@ -229,10 +229,6 @@ public class ValidateTokenUtil {
 			return Algorithm.RSA512((RSAPublicKey) publicKey, null);
 		case "PS256":
 			return PssAlgorithm.PS256(publicKey);
-		case "PS384":
-			return PssAlgorithm.PS384(publicKey);
-		case "PS512":
-			return PssAlgorithm.PS512(publicKey);
 		default:
 			return Algorithm.RSA256((RSAPublicKey) publicKey, null);
 		}
