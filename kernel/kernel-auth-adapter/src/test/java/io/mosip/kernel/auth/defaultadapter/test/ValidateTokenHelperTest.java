@@ -247,7 +247,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withPS256Algo_thenPass() throws Exception {
+	public void isTokenValidPS256Test() throws Exception {
 		KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
 		kpg.initialize(2048);
 		KeyPair kp = kpg.generateKeyPair();
