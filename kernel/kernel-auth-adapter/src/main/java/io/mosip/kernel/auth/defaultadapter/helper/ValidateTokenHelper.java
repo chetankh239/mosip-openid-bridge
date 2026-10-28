@@ -7,7 +7,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.PublicKey;
-import java.security.interfaces.RSAPublicKey;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,7 +41,7 @@ import com.auth0.jwk.JwkProvider;
 import com.auth0.jwk.UrlJwkProvider;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.SignatureVerificationException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -56,6 +55,7 @@ import io.mosip.kernel.core.exception.ExceptionUtils;
 import io.mosip.kernel.core.exception.ServiceError;
 import io.mosip.kernel.core.util.DateUtils2;
 import io.mosip.kernel.core.util.EmptyCheckUtils;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
 import jakarta.annotation.PostConstruct;
 
@@ -162,9 +162,9 @@ public class ValidateTokenHelper {
 		// Third, signature validation.
 		try {
 			String tokenAlgo = decodedJWT.getAlgorithm();
-			Algorithm algorithm = getVerificationAlgorithm(tokenAlgo, publicKey);
+			Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
 			algorithm.verify(decodedJWT);
-		} catch (SignatureVerificationException signatureException) {
+		} catch (JWTVerificationException signatureException) {
 			LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName,
 					signatureException);
 			return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
@@ -257,19 +257,6 @@ public class ValidateTokenHelper {
 		return null;
 	}
 
-	private Algorithm getVerificationAlgorithm(String tokenAlgo, PublicKey publicKey) {
-		// Later will add other Algorithms.
-		switch (tokenAlgo) {
-		case "RS256":
-			return Algorithm.RSA256((RSAPublicKey) publicKey, null);
-		case "RS384":
-			return Algorithm.RSA384((RSAPublicKey) publicKey, null);
-		case "RS512":
-			return Algorithm.RSA512((RSAPublicKey) publicKey, null);
-		default:
-			return Algorithm.RSA256((RSAPublicKey) publicKey, null);
-		}
-	}
 
 	@SuppressWarnings("unchecked")
 	public MosipUserDto buildMosipUser(DecodedJWT decodedJWT, String jwtToken) {
@@ -280,7 +267,7 @@ public class ValidateTokenHelper {
 		mosipUserDto.setMobile(decodedJWT.getClaim(AuthAdapterConstant.MOBILE).asString());
 		mosipUserDto.setUserId(decodedJWT.getClaim(AuthAdapterConstant.PREFERRED_USERNAME).asString());
 		Claim realmAccess = decodedJWT.getClaim(AuthAdapterConstant.REALM_ACCESS);
-		if (!realmAccess.isNull()) {
+		if (JWTUtils.isClaimPresent(realmAccess)) {
 			List<String> roles = (List<String>) realmAccess.asMap().get("roles");
 			StringBuilder strBuilder = new StringBuilder();
 

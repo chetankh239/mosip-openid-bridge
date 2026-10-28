@@ -35,7 +35,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import com.auth0.jwt.JWT;
-import com.auth0.jwt.impl.NullClaim;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
@@ -43,6 +42,7 @@ import io.mosip.kernel.auth.defaultadapter.config.RestTemplateInterceptor;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.helper.TokenValidationHelper;
 import io.mosip.kernel.auth.defaultadapter.model.AuthToken;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.AuthUserDetails;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
 import jakarta.annotation.PostConstruct;
@@ -139,7 +139,7 @@ public class AuthHandler extends AbstractUserDetailsAuthenticationProvider {
 	private Optional<String> getScopeClaim(String jwtToken) {
 		 DecodedJWT decodedJWT = JWT.decode(jwtToken);
 		Claim claim = decodedJWT.getClaim(AuthAdapterConstant.SCOPE);
-		if(claim != null && !(claim instanceof NullClaim)) {
+		if(JWTUtils.isClaimPresent(claim)) {
 			String scopesStr = claim.asString();
 			return Optional.of(scopesStr);
 		}

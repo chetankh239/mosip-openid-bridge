@@ -9,8 +9,13 @@ import java.nio.charset.Charset;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PublicKey;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.ECGenParameterSpec;
+import java.util.Arrays;
+import java.util.Collections;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -361,6 +366,102 @@ public class ValidateTokenHelperTest {
 		Assert.assertNull(publicKey);
 	}
 
+	@Test
+	public void isTokenValid_withPS256Algo_thenPass() throws Exception {
+		KeyPair kp = generateKeyPair("RSA", 2048);
+		String token = signedToken(Algorithm.RSA256PSS((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()),
+				"PS256");
 
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(JWT.decode(token),
+				kp.getPublic());
+		assertThat(res.left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withES256Algo_thenPass() throws Exception {
+		KeyPair kp = generateKeyPair("EC", 256);
+		String token = signedToken(Algorithm.ECDSA256((ECPublicKey) kp.getPublic(), (ECPrivateKey) kp.getPrivate()),
+				"ES256");
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(JWT.decode(token),
+				kp.getPublic());
+		assertThat(res.left, is(true));
+	}
+
+	@Test
+	public void isTokenValid_withPS256TokenAndWrongKey_thenUnauthorized() throws Exception {
+		KeyPair kp = generateKeyPair("RSA", 2048);
+		KeyPair otherKp = generateKeyPair("RSA", 2048);
+		String token = signedToken(Algorithm.RSA256PSS((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()),
+				"PS256");
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(JWT.decode(token),
+				otherKp.getPublic());
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void isTokenValid_withES256TokenAndRSAKey_thenUnauthorized() throws Exception {
+		KeyPair kp = generateKeyPair("EC", 256);
+		KeyPair rsaKp = generateKeyPair("RSA", 2048);
+		String token = signedToken(Algorithm.ECDSA256((ECPublicKey) kp.getPublic(), (ECPrivateKey) kp.getPrivate()),
+				"ES256");
+
+		ImmutablePair<Boolean, AuthAdapterErrorCode> res = validateTokenHelper.isTokenValid(JWT.decode(token),
+				rsaKp.getPublic());
+		assertThat(res.left, is(false));
+		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
+	}
+
+	@Test
+	public void buildMosipUser_withRealmAccessClaim_thenRolesFromRealmAccess() throws Exception {
+		KeyPair kp = generateKeyPair("RSA", 2048);
+		String token = JWT.create().withSubject("mock-user")
+				.withClaim(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user")
+				.withClaim(AuthAdapterConstant.REALM_ACCESS, Collections.singletonMap("roles", Arrays.asList("ADMIN", "RESIDENT")))
+				.sign(Algorithm.RSA256((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()));
+
+		MosipUserDto user = validateTokenHelper.buildMosipUser(JWT.decode(token), token);
+
+		assertThat(user.getRole(), is("ADMIN,RESIDENT,"));
+		assertThat(user.getName(), is("mock-user"));
+	}
+
+	@Test
+	public void buildMosipUser_withoutRealmAccessClaim_thenRolesFromRolesClaim() throws Exception {
+		KeyPair kp = generateKeyPair("RSA", 2048);
+		String token = JWT.create().withSubject("mock-user")
+				.withClaim(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user")
+				.withClaim(AuthAdapterConstant.ROLES, "ADMIN")
+				.sign(Algorithm.RSA256((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()));
+
+		MosipUserDto user = validateTokenHelper.buildMosipUser(JWT.decode(token), token);
+
+		assertThat(user.getRole(), is("ADMIN"));
+		assertThat(user.getName(), is("mock-user"));
+	}
+
+	private KeyPair generateKeyPair(String algorithm, int size) throws Exception {
+		KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm);
+		if ("EC".equals(algorithm)) {
+			kpg.initialize(new ECGenParameterSpec("secp" + size + "r1"));
+		} else {
+			kpg.initialize(size);
+		}
+		return kpg.generateKeyPair();
+	}
+
+	private String signedToken(Algorithm algorithm, String tokenAlgo) {
+		Map<String, Object> headers = new HashMap<>();
+		headers.put("alg", tokenAlgo);
+		return JWT.create().withHeader(headers).withClaim(AuthAdapterConstant.EMAIL, "mockuser!mosip.com")
+				.withClaim(AuthAdapterConstant.MOBILE, "9210283991")
+				.withClaim(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user")
+				.withClaim(AuthAdapterConstant.ROLES, "ADMIN").withClaim(AuthAdapterConstant.AZP, "account")
+				.withClaim(AuthAdapterConstant.ISSUER, "https://iam.mosip.net/auth/realms/").withSubject("mock-user")
+				.withIssuedAt(Date.from(Instant.now())).withExpiresAt(Date.from(Instant.now().plusSeconds(345600)))
+				.withAudience(new String[] { "account" }).sign(algorithm);
+	}
 
 }
