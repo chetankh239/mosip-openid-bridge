@@ -16,9 +16,6 @@ import org.junit.Test;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 
-/**
- * Verifies HS384 and HS512 signature checking with a configured shared secret.
- */
 public class JWTUtilsHmacTest {
 
 	private static final String HS384_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -106,7 +103,6 @@ public class JWTUtilsHmacTest {
 
 	@Test
 	public void isHmacSignatureValid_withTokenSignedWithPublicKeyAsSecret_thenFalse() {
-		// algorithm confusion: the attacker uses a public key as the HMAC secret
 		byte[] publicKeyBytes = Base64.getEncoder().encode(rsaKeyPair.getPublic().getEncoded());
 		String forged = JWT.create().withSubject("admin").sign(Algorithm.HMAC512(publicKeyBytes));
 

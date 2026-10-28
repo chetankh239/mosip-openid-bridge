@@ -26,10 +26,6 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
-/**
- * Verifies that every supported signing algorithm is resolved from the token
- * {@code alg} header and checks signatures with real keys.
- */
 @RunWith(Parameterized.class)
 public class JWTUtilsVerificationAlgorithmTest {
 

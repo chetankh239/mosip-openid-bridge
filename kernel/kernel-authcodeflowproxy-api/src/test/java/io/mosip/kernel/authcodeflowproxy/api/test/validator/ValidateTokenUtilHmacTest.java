@@ -18,10 +18,6 @@ import com.auth0.jwt.algorithms.Algorithm;
 import io.mosip.kernel.authcodeflowproxy.api.validator.ValidateTokenUtil;
 import io.mosip.kernel.openid.bridge.api.constants.AuthErrorCode;
 
-/**
- * Verifies that HS384 and HS512 signed tokens are checked only against the
- * configured shared secret.
- */
 public class ValidateTokenUtilHmacTest {
 
 	private static final String HS384_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef";

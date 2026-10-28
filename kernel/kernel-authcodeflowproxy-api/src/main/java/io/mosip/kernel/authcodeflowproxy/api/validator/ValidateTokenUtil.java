@@ -39,11 +39,11 @@ import com.nimbusds.jose.jwk.JWK;
 
 import io.mosip.kernel.core.util.DateUtils2;
 import io.mosip.kernel.core.util.EmptyCheckUtils;
-import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.api.constants.AuthConstant;
 import io.mosip.kernel.openid.bridge.api.constants.AuthErrorCode;
 import io.mosip.kernel.openid.bridge.api.constants.Errors;
 import io.mosip.kernel.openid.bridge.api.exception.ServiceException;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 
 /**
  * Token validator
@@ -179,7 +179,6 @@ public class ValidateTokenUtil {
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
 		if (JWTUtils.isNimbusToken(decodedJWT) || JWTUtils.isHmacToken(decodedJWT)) {
-			// These tokens are not verified with a key read by the JWKS library, see getPublicJWK and hmacSecret.
 			return null;
 		}
 
@@ -201,23 +200,20 @@ public class ValidateTokenUtil {
 	 */
 	public ImmutablePair<Boolean, AuthErrorCode> verifyJWTSignagure(DecodedJWT decodedJWT) {
 		try {
+			boolean signatureValid = true;
 			if (JWTUtils.isHmacToken(decodedJWT)) {
-				// HS384 and HS512 are verified with the configured shared secret only.
-				if (!JWTUtils.isHmacSignatureValid(decodedJWT, hmacSecret)) {
-					LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.");
-					return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
-				}
+				signatureValid = JWTUtils.isHmacSignatureValid(decodedJWT, hmacSecret);
 			} else if (JWTUtils.isNimbusToken(decodedJWT)) {
-				// java-jwt does not support Ed25519 and ES256K, so they are verified with nimbus-jose-jwt.
-				if (!JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT))) {
-					LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.");
-					return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
-				}
+				signatureValid = JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT));
 			} else {
 				String tokenAlgo = decodedJWT.getAlgorithm();
 				PublicKey publicKey = getPublicKey(decodedJWT);
 				Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
 				algorithm.verify(decodedJWT);
+			}
+			if (!signatureValid) {
+				LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.");
+				return ImmutablePair.of(Boolean.FALSE, AuthErrorCode.UNAUTHORIZED);
 			}
 		} catch (SignatureVerificationException | AlgorithmMismatchException signatureException) {
 			LOGGER.error("Signature validation failed for User Info, Throwing Authentication Exception.",
@@ -250,6 +246,5 @@ public class ValidateTokenUtil {
 		}
 		return null;
 	}
-
 
 }

@@ -77,7 +77,6 @@ public class JWTUtilsTest {
 	@Test
 	public void getissuer_thenReturnIssuerFromToken() {
 		assertEquals("https://iam.mosip.net/auth/realms/mosip", JWTUtils.getissuer(token));
-		// second call is served from the cache
 		assertEquals("https://iam.mosip.net/auth/realms/mosip", JWTUtils.getissuer(token));
 	}
 

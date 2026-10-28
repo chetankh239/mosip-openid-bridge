@@ -37,10 +37,6 @@ import com.sun.net.httpserver.HttpServer;
 import io.mosip.kernel.authcodeflowproxy.api.validator.ValidateTokenUtil;
 import io.mosip.kernel.openid.bridge.api.constants.AuthErrorCode;
 
-/**
- * Verifies that Ed25519 and ES256K signed tokens are checked against the keys of
- * the JWKS endpoint.
- */
 public class ValidateTokenUtilNimbusTest {
 
 	private static final Provider BC = new BouncyCastleProvider();

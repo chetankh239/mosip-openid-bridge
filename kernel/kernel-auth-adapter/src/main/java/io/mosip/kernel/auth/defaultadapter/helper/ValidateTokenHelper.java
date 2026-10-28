@@ -46,10 +46,10 @@ import com.auth0.jwt.exceptions.AlgorithmMismatchException;
 import com.auth0.jwt.exceptions.SignatureVerificationException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.nimbusds.jose.jwk.JWK;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbusds.jose.jwk.JWK;
 
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
@@ -167,22 +167,19 @@ public class ValidateTokenHelper {
 
 		// Third, signature validation.
 		try {
+			boolean signatureValid = true;
 			if (JWTUtils.isHmacToken(decodedJWT)) {
-				// HS384 and HS512 are verified with the configured shared secret only.
-				if (!JWTUtils.isHmacSignatureValid(decodedJWT, hmacSecret)) {
-					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
-					return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
-				}
+				signatureValid = JWTUtils.isHmacSignatureValid(decodedJWT, hmacSecret);
 			} else if (JWTUtils.isNimbusToken(decodedJWT)) {
-				// java-jwt does not support Ed25519 and ES256K, so they are verified with nimbus-jose-jwt.
-				if (!JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT))) {
-					LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
-					return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
-				}
+				signatureValid = JWTUtils.isNimbusSignatureValid(decodedJWT, getPublicJWK(decodedJWT));
 			} else {
 				String tokenAlgo = decodedJWT.getAlgorithm();
 				Algorithm algorithm = JWTUtils.getVerificationAlgorithm(tokenAlgo, publicKey);
 				algorithm.verify(decodedJWT);
+			}
+			if (!signatureValid) {
+				LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName);
+				return ImmutablePair.of(Boolean.FALSE, AuthAdapterErrorCode.UNAUTHORIZED);
 			}
 		} catch (SignatureVerificationException | AlgorithmMismatchException signatureException) {
 			LOGGER.error("Signature validation failed, Throwing Authentication Exception. UserName: " + userName,
@@ -241,7 +238,6 @@ public class ValidateTokenHelper {
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
 		if (JWTUtils.isNimbusToken(decodedJWT) || JWTUtils.isHmacToken(decodedJWT)) {
-			// These tokens are not verified with a key read by the JWKS library, see getPublicJWK and hmacSecret.
 			return null;
 		}
 
@@ -293,7 +289,6 @@ public class ValidateTokenHelper {
 		}
 		return null;
 	}
-
 
 	@SuppressWarnings("unchecked")
 	public MosipUserDto buildMosipUser(DecodedJWT decodedJWT, String jwtToken) {

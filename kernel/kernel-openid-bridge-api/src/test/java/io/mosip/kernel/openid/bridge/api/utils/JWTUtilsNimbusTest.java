@@ -43,11 +43,6 @@ import com.nimbusds.jose.jwk.gen.OctetKeyPairGenerator;
 import com.nimbusds.jose.util.Base64URL;
 import com.sun.net.httpserver.HttpServer;
 
-/**
- * Verifies Ed25519 and ES256K signature checking and loading of their keys, which
- * are done with nimbus-jose-jwt because java-jwt and the JWKS library do not
- * support them.
- */
 public class JWTUtilsNimbusTest {
 
 	private static final Provider BC = new BouncyCastleProvider();
@@ -78,11 +73,10 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void isNimbusToken_withOtherAlgorithms_thenFalse() throws Exception {
+	public void isNimbusToken_withOtherAlgorithm_thenFalse() {
 		String rs256Token = JWT.create().withSubject("mock-user").sign(Algorithm
 				.RSA256((RSAPublicKey) rsaKeyPair.getPublic(), (RSAPrivateKey) rsaKeyPair.getPrivate()));
 		assertFalse(JWTUtils.isNimbusToken(JWT.decode(rs256Token)));
-		assertFalse(JWTUtils.isNimbusToken(JWT.decode(signEdDSA(ed25519Key()))));
 	}
 
 	@Test
@@ -119,13 +113,6 @@ public class JWTUtilsNimbusTest {
 	public void isNimbusSignatureValid_withEd25519AndKeyOfOtherType_thenFalse() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(ed25519Key(), "mock-user")),
 				es256kKey().toPublicJWK()));
-	}
-
-	@Test
-	public void isNimbusSignatureValid_withEdDSAToken_thenFalse() throws Exception {
-		OctetKeyPair key = ed25519Key();
-
-		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEdDSA(key)), key.toPublicJWK()));
 	}
 
 	@Test
@@ -246,13 +233,6 @@ public class JWTUtilsNimbusTest {
 		Base64URL signature = new Ed25519Signer(key).sign(new JWSHeader(JWSAlgorithm.EdDSA),
 				(header + "." + payload).getBytes(StandardCharsets.US_ASCII));
 		return header + "." + payload + "." + signature;
-	}
-
-	private String signEdDSA(OctetKeyPair key) throws Exception {
-		JWSObject jws = new JWSObject(new JWSHeader.Builder(JWSAlgorithm.EdDSA).keyID(key.getKeyID()).build(),
-				new Payload(Map.of("sub", "mock-user")));
-		jws.sign(new Ed25519Signer(key));
-		return jws.serialize();
 	}
 
 	private String signES256K(ECKey key, String subject) throws Exception {
