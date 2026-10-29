@@ -32,8 +32,12 @@ import com.nimbusds.jose.jwk.OctetKeyPair;
 import com.nimbusds.jose.util.Base64URL;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JWTUtils {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(JWTUtils.class);
 	
 	private JWTUtils() {
 		
@@ -144,6 +148,7 @@ public class JWTUtils {
 					.getBytes(StandardCharsets.US_ASCII);
 			return verifier.verify(new JWSHeader(algorithm), signingInput, new Base64URL(decodedJWT.getSignature()));
 		} catch (JOSEException e) {
+			LOGGER.warn("Signature check of a {} token failed: {}", tokenAlgo, e.getMessage());
 			return false;
 		}
 	}
@@ -177,6 +182,11 @@ public class JWTUtils {
 		} catch (SignatureVerificationException e) {
 			return false;
 		}
+	}
+
+	/** Tells whether the token is verified without a {@link PublicKey}: Ed25519, ES256K, HS384 and HS512. */
+	public static boolean isVerifiedWithoutPublicKey(DecodedJWT decodedJWT) {
+		return isNimbusToken(decodedJWT) || isHmacToken(decodedJWT);
 	}
 
 	/** Tells whether a claim exists in the token and is not a JSON null. */

@@ -10,6 +10,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -269,5 +270,46 @@ public class TokenValidationHelperTest {
 		mosipUserDto.setToken(token);
 		when(validateTokenHelper.doOfflineLocalTokenValidation(Mockito.anyString())).thenReturn(mosipUserDto);
 		MosipUserDto res= tokenValidationHelper.getTokenValidatedUserResponse(token, new RestTemplate());
+	}
+
+	@Test
+	public void getTokenValidatedUserResponse_withHS512Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+		String token = JWT.create().withSubject("mock-user")
+				.sign(Algorithm.HMAC512("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".getBytes()));
+
+		assertValidatedOfflineWithoutPublicKey(token);
+	}
+
+	@Test
+	public void getTokenValidatedUserResponse_withEd25519Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+		assertValidatedOfflineWithoutPublicKey(tokenWithAlgorithm("Ed25519"));
+	}
+
+	@Test
+	public void getTokenValidatedUserResponse_withES256KToken_thenValidatedOfflineWithoutPublicKey() throws Exception {
+		assertValidatedOfflineWithoutPublicKey(tokenWithAlgorithm("ES256K"));
+	}
+
+	private void assertValidatedOfflineWithoutPublicKey(String token) {
+		ReflectionTestUtils.setField(tokenValidationHelper, "activeProfile", "test");
+		MosipUserDto mosipUserDto = new MosipUserDto();
+		mosipUserDto.setUserId("110005");
+		when(validateTokenHelper.getPublicKey(Mockito.any(DecodedJWT.class))).thenReturn(null);
+		when(validateTokenHelper.isTokenValid(Mockito.any(DecodedJWT.class), Mockito.isNull()))
+				.thenReturn(new ImmutablePair<>(true, null));
+		when(validateTokenHelper.buildMosipUser(Mockito.any(DecodedJWT.class), Mockito.anyString()))
+				.thenReturn(mosipUserDto);
+
+		MosipUserDto res = tokenValidationHelper.getTokenValidatedUserResponse(token, new RestTemplate());
+
+		assertThat(res.getUserId(), is("110005"));
+		Mockito.verify(validateTokenHelper, Mockito.never()).doOnlineTokenValidation(Mockito.anyString(),
+				Mockito.any(RestTemplate.class));
+	}
+
+	private String tokenWithAlgorithm(String algorithm) {
+		Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
+		return encoder.encodeToString(("{\"alg\":\"" + algorithm + "\"}").getBytes()) + "."
+				+ encoder.encodeToString("{\"sub\":\"mock-user\"}".getBytes()) + "." + encoder.encodeToString("sig".getBytes());
 	}
 }

@@ -29,6 +29,7 @@ import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterConstant;
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
 import io.mosip.kernel.core.exception.ServiceError;
 import io.mosip.kernel.core.http.ResponseWrapper;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
@@ -139,7 +140,7 @@ public class VertxTokenValidationHelper {
         PublicKey publicKey = validateTokenHelper.getPublicKey(decodedJWT);
         // Still not able to get the public key either from server or local cache,
         // proceed with online token validation.
-        if (Objects.isNull(publicKey)) {
+        if (Objects.isNull(publicKey) && !JWTUtils.isVerifiedWithoutPublicKey(decodedJWT)) {
             return doOnlineTokenValidation(jwtToken, restTemplate, routingContext);
         }
 

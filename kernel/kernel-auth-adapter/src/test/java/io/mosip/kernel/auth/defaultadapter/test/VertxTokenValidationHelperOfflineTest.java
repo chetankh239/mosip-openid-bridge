@@ -168,4 +168,27 @@ public class VertxTokenValidationHelperOfflineTest {
 	 * assertThat(md.getUserId(),is("mock-user")); }
 	 */
 	
+
+	@Test
+	public void getTokenValidatedVertxUserResponse_withHS512Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+		String token = JWT.create().withSubject("mock-user")
+				.sign(Algorithm.HMAC512("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".getBytes()));
+		String cookie = "Authorization=" + token;
+		when(routingContext.request()).thenReturn(httpServerRequest);
+		when(httpServerRequest.getHeader(AuthAdapterConstant.AUTH_HEADER_COOKIE)).thenReturn(cookie);
+		when(validateTokenHelper.getPublicKey(Mockito.any(DecodedJWT.class))).thenReturn(null);
+		when(validateTokenHelper.isTokenValid(Mockito.any(DecodedJWT.class), Mockito.isNull()))
+				.thenReturn(new ImmutablePair<Boolean, AuthAdapterErrorCode>(true, null));
+		MosipUserDto mosipUserDto = new MosipUserDto();
+		mosipUserDto.setUserId("mock-user");
+		mosipUserDto.setRole("PARTNER_ADMIN");
+		when(validateTokenHelper.buildMosipUser(Mockito.any(DecodedJWT.class), Mockito.eq(token))).thenReturn(mosipUserDto);
+
+		MosipUserDto md = vertxTokenValidationHelper.getTokenValidatedVertxUserResponse(restTemplate, routingContext,
+				new String[] { "PARTNER_ADMIN" });
+
+		assertThat(md.getUserId(), is("mock-user"));
+		Mockito.verify(validateTokenHelper, Mockito.never()).doOnlineTokenValidation(Mockito.anyString(),
+				Mockito.any(RestTemplate.class));
+	}
 }

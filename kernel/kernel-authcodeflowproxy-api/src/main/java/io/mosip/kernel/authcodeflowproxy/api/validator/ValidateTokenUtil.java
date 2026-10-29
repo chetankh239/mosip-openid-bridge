@@ -178,7 +178,7 @@ public class ValidateTokenUtil {
 		String userName = decodedJWT.getClaim(AuthConstant.PREFERRED_USERNAME).asString();
 		LOGGER.info("offline verification for environment profile. UserName: " + userName);
 
-		if (JWTUtils.isNimbusToken(decodedJWT) || JWTUtils.isHmacToken(decodedJWT)) {
+		if (JWTUtils.isVerifiedWithoutPublicKey(decodedJWT)) {
 			return null;
 		}
 
@@ -229,7 +229,7 @@ public class ValidateTokenUtil {
 		try {
 			return JWTUtils.getPublicJWK(certsPathUrl, decodedJWT.getKeyId());
 		} catch (IOException | ParseException | URISyntaxException e) {
-			LOGGER.error("Error downloading Public key from server".concat(e.getMessage()));
+			LOGGER.error("Error downloading Public key from server", e);
 		}
 		return null;
 	}

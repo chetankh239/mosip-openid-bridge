@@ -18,6 +18,7 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 
 import io.mosip.kernel.auth.defaultadapter.constant.AuthAdapterErrorCode;
 import io.mosip.kernel.auth.defaultadapter.exception.AuthManagerException;
+import io.mosip.kernel.openid.bridge.api.utils.JWTUtils;
 import io.mosip.kernel.openid.bridge.model.MosipUserDto;
 
 @Component
@@ -82,7 +83,7 @@ public class TokenValidationHelper {
         PublicKey publicKey = validateTokenHelper.getPublicKey(decodedJWT);
         // Still not able to get the public key either from server or local cache,
         // proceed with online token validation.
-        if (Objects.isNull(publicKey)) {
+        if (Objects.isNull(publicKey) && !JWTUtils.isVerifiedWithoutPublicKey(decodedJWT)) {
             return doOnlineTokenValidation(jwtToken, restTemplate);
         }
 
