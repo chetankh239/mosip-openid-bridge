@@ -52,8 +52,6 @@ public class JWTUtils {
 	private static final int JWKS_TIMEOUT_MS = 5000;
 	private static final int JWKS_SIZE_LIMIT = 51200;
 
-	private static final Provider BOUNCY_CASTLE = new BouncyCastleProvider();
-
 	private static final Map<String, JWK> publicJWKCache = new ConcurrentHashMap<>();
 
 	static Map<String,DecodedJWT> decodedJWTCache = new HashMap<>();
@@ -138,7 +136,7 @@ public class JWTUtils {
 				algorithm = JWSAlgorithm.EdDSA; // the name nimbus knows its Ed25519 verifier by
 			} else if (ES256K_ALGORITHM.equals(tokenAlgo) && publicKey instanceof ECKey ecKey) {
 				ECDSAVerifier ecdsaVerifier = new ECDSAVerifier(ecKey);
-				ecdsaVerifier.getJCAContext().setProvider(BOUNCY_CASTLE); // the JDK has no secp256k1 curve
+				ecdsaVerifier.getJCAContext().setProvider(BouncyCastleHolder.PROVIDER); // the JDK has no secp256k1 curve
 				verifier = ecdsaVerifier;
 				algorithm = JWSAlgorithm.ES256K;
 			} else {
@@ -168,10 +166,11 @@ public class JWTUtils {
 	 * @return true only if the signature is valid, false for a missing or too short secret
 	 */
 	public static boolean isHmacSignatureValid(DecodedJWT decodedJWT, String secret) {
-		if (secret == null || !isHmacToken(decodedJWT)) {
+		String algorithm = decodedJWT.getAlgorithm();
+		boolean hs384 = HS384_ALGORITHM.equals(algorithm);
+		if (secret == null || !(hs384 || HS512_ALGORITHM.equals(algorithm))) {
 			return false;
 		}
-		boolean hs384 = HS384_ALGORITHM.equals(decodedJWT.getAlgorithm());
 		byte[] key = secret.getBytes(StandardCharsets.UTF_8);
 		if (key.length < (hs384 ? HS384_MIN_SECRET_LENGTH : HS512_MIN_SECRET_LENGTH)) {
 			return false;
@@ -200,5 +199,9 @@ public class JWTUtils {
 					"The public key does not match the token algorithm " + tokenAlgo + ", expected " + keyType.getSimpleName());
 		}
 		return keyType.cast(publicKey);
+	}
+
+	private static final class BouncyCastleHolder {
+		private static final Provider PROVIDER = new BouncyCastleProvider();
 	}
 }
