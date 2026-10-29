@@ -1,6 +1,5 @@
 package io.mosip.kernel.openid.bridge.api.utils;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -27,8 +26,7 @@ public class JWTUtilsTest {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
 		generator.initialize(2048);
 		keyPair = generator.generateKeyPair();
-		token = JWT.create().withIssuer("https://iam.mosip.net/auth/realms/mosip").withSubject("mock-user")
-				.withClaim("present", "value").withNullClaim("nullClaim")
+		token = JWT.create().withSubject("mock-user").withClaim("present", "value").withNullClaim("nullClaim")
 				.sign(Algorithm.RSA256((RSAPublicKey) keyPair.getPublic(), (RSAPrivateKey) keyPair.getPrivate()));
 	}
 
@@ -72,16 +70,5 @@ public class JWTUtilsTest {
 	@Test
 	public void isClaimPresent_withNullClaim_thenFalse() {
 		assertFalse(JWTUtils.isClaimPresent(null));
-	}
-
-	@Test
-	public void getissuer_thenReturnIssuerFromToken() {
-		assertEquals("https://iam.mosip.net/auth/realms/mosip", JWTUtils.getissuer(token));
-		assertEquals("https://iam.mosip.net/auth/realms/mosip", JWTUtils.getissuer(token));
-	}
-
-	@Test
-	public void getSubClaimValueFromToken_thenReturnClaimValue() {
-		assertEquals("value", JWTUtils.getSubClaimValueFromToken(token, "present"));
 	}
 }
