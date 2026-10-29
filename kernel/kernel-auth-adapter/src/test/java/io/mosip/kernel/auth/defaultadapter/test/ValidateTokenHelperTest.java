@@ -367,7 +367,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withPS256Algo_thenPass() throws Exception {
+	public void isTokenValidWithPS256AlgoThenPassTest() throws Exception {
 		KeyPair kp = generateKeyPair("RSA", 2048);
 		String token = signedToken(Algorithm.RSA256PSS((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()),
 				"PS256");
@@ -378,7 +378,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withES256Algo_thenPass() throws Exception {
+	public void isTokenValidWithES256AlgoThenPassTest() throws Exception {
 		KeyPair kp = generateKeyPair("EC", 256);
 		String token = signedToken(Algorithm.ECDSA256((ECPublicKey) kp.getPublic(), (ECPrivateKey) kp.getPrivate()),
 				"ES256");
@@ -389,7 +389,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withPS256TokenAndWrongKey_thenUnauthorized() throws Exception {
+	public void isTokenValidWithPS256TokenAndWrongKeyThenUnauthorizedTest() throws Exception {
 		KeyPair kp = generateKeyPair("RSA", 2048);
 		KeyPair otherKp = generateKeyPair("RSA", 2048);
 		String token = signedToken(Algorithm.RSA256PSS((RSAPublicKey) kp.getPublic(), (RSAPrivateKey) kp.getPrivate()),
@@ -402,7 +402,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void isTokenValid_withES256TokenAndRSAKey_thenUnauthorized() throws Exception {
+	public void isTokenValidWithES256TokenAndRSAKeyThenUnauthorizedTest() throws Exception {
 		KeyPair kp = generateKeyPair("EC", 256);
 		KeyPair rsaKp = generateKeyPair("RSA", 2048);
 		String token = signedToken(Algorithm.ECDSA256((ECPublicKey) kp.getPublic(), (ECPrivateKey) kp.getPrivate()),
@@ -415,7 +415,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void buildMosipUser_withRealmAccessClaim_thenRolesFromRealmAccess() throws Exception {
+	public void buildMosipUserWithRealmAccessClaimThenRolesFromRealmAccessTest() throws Exception {
 		KeyPair kp = generateKeyPair("RSA", 2048);
 		String token = JWT.create().withSubject("mock-user")
 				.withClaim(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user")
@@ -429,7 +429,7 @@ public class ValidateTokenHelperTest {
 	}
 
 	@Test
-	public void buildMosipUser_withoutRealmAccessClaim_thenRolesFromRolesClaim() throws Exception {
+	public void buildMosipUserWithoutRealmAccessClaimThenRolesFromRolesClaimTest() throws Exception {
 		KeyPair kp = generateKeyPair("RSA", 2048);
 		String token = JWT.create().withSubject("mock-user")
 				.withClaim(AuthAdapterConstant.PREFERRED_USERNAME, "mock-user")

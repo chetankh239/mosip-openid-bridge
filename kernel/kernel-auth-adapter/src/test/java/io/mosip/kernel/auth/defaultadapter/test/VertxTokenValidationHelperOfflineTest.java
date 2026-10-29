@@ -170,7 +170,7 @@ public class VertxTokenValidationHelperOfflineTest {
 	
 
 	@Test
-	public void getTokenValidatedVertxUserResponse_withHS512Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+	public void getTokenValidatedVertxUserResponseWithHS512TokenThenValidatedOfflineWithoutPublicKeyTest() throws Exception {
 		String token = JWT.create().withSubject("mock-user")
 				.sign(Algorithm.HMAC512("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".getBytes()));
 		String cookie = "Authorization=" + token;

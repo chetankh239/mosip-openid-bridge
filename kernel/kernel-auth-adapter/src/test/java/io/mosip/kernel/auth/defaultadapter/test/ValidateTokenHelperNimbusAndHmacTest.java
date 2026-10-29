@@ -62,21 +62,21 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	private HttpServer server;
 
 	@Test
-	public void isTokenValid_withEd25519Algo_thenPass() throws Exception {
+	public void isTokenValidWithEd25519AlgoThenPassTest() throws Exception {
 		OctetKeyPair okp = newEd25519Key();
 
 		assertThat(isTokenValidWithKeySet(signedEd25519Token(okp), new JWKSet(okp)).left, is(true));
 	}
 
 	@Test
-	public void isTokenValid_withES256KAlgo_thenPass() throws Exception {
+	public void isTokenValidWithES256KAlgoThenPassTest() throws Exception {
 		ECKey ecKey = newES256KKey();
 
 		assertThat(isTokenValidWithKeySet(signedES256KToken(ecKey), new JWKSet(ecKey)).left, is(true));
 	}
 
 	@Test
-	public void isTokenValid_withEd25519TokenAndWrongKey_thenUnauthorized() throws Exception {
+	public void isTokenValidWithEd25519TokenAndWrongKeyThenUnauthorizedTest() throws Exception {
 		OctetKeyPair okp = newEd25519Key();
 		OctetKeyPair wrongKey = new OctetKeyPairGenerator(Curve.Ed25519).keyID(okp.getKeyID()).generate();
 
@@ -87,7 +87,7 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void isTokenValid_withES256KTokenAndWrongKey_thenUnauthorized() throws Exception {
+	public void isTokenValidWithES256KTokenAndWrongKeyThenUnauthorizedTest() throws Exception {
 		ECKey ecKey = newES256KKey();
 		ECKey wrongKey = new ECKeyGenerator(Curve.SECP256K1).provider(BC).keyID(ecKey.getKeyID()).generate();
 
@@ -98,7 +98,7 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void isTokenValid_withEd25519TokenAndUnknownKeyId_thenUnauthorized() throws Exception {
+	public void isTokenValidWithEd25519TokenAndUnknownKeyIdThenUnauthorizedTest() throws Exception {
 		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithKeySet(signedEd25519Token(newEd25519Key()),
 				new JWKSet(newEd25519Key()));
 		assertThat(res.left, is(false));
@@ -106,7 +106,7 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void isTokenValid_withEd25519TokenAndUnreachableCertsEndpoint_thenUnauthorized() throws Exception {
+	public void isTokenValidWithEd25519TokenAndUnreachableCertsEndpointThenUnauthorizedTest() throws Exception {
 		OctetKeyPair okp = newEd25519Key();
 		String token = signedEd25519Token(okp);
 		String certsUrlOfStoppedServer = startJwksServer(new JWKSet(okp));
@@ -118,34 +118,34 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void getPublicKey_withEd25519Token_thenNullWithoutDownloadingKey() throws Exception {
+	public void getPublicKeyWithEd25519TokenThenNullWithoutDownloadingKeyTest() throws Exception {
 		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedEd25519Token(newEd25519Key()))));
 	}
 
 	@Test
-	public void getPublicKey_withES256KToken_thenNullWithoutDownloadingKey() throws Exception {
+	public void getPublicKeyWithES256KTokenThenNullWithoutDownloadingKeyTest() throws Exception {
 		assertNull(validateTokenHelper.getPublicKey(JWT.decode(signedES256KToken(newES256KKey()))));
 	}
 
 	@Test
-	public void isTokenValid_withHS384AndConfiguredSecret_thenPass() {
+	public void isTokenValidWithHS384AndConfiguredSecretThenPassTest() {
 		assertThat(isTokenValidWithHmacSecret(hmacToken("HS384", HS384_SECRET), HS384_SECRET).left, is(true));
 	}
 
 	@Test
-	public void isTokenValid_withHS512AndConfiguredSecret_thenPass() {
+	public void isTokenValidWithHS512AndConfiguredSecretThenPassTest() {
 		assertThat(isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET), HS512_SECRET).left, is(true));
 	}
 
 	@Test
-	public void isTokenValid_withHS512AndNoConfiguredSecret_thenUnauthorized() {
+	public void isTokenValidWithHS512AndNoConfiguredSecretThenUnauthorizedTest() {
 		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET), "");
 		assertThat(res.left, is(false));
 		assertThat(res.right, is(AuthAdapterErrorCode.UNAUTHORIZED));
 	}
 
 	@Test
-	public void isTokenValid_withHS512AndWrongSecret_thenUnauthorized() {
+	public void isTokenValidWithHS512AndWrongSecretThenUnauthorizedTest() {
 		ImmutablePair<Boolean, AuthAdapterErrorCode> res = isTokenValidWithHmacSecret(hmacToken("HS512", HS512_SECRET),
 				HS512_SECRET.replace('0', '9'));
 		assertThat(res.left, is(false));
@@ -153,7 +153,7 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void isTokenValid_withHS512SignedWithPublicKeyAsSecret_thenUnauthorized() throws Exception {
+	public void isTokenValidWithHS512SignedWithPublicKeyAsSecretThenUnauthorizedTest() throws Exception {
 		KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
 		kpg.initialize(2048);
 		KeyPair kp = kpg.generateKeyPair();
@@ -166,7 +166,7 @@ public class ValidateTokenHelperNimbusAndHmacTest {
 	}
 
 	@Test
-	public void getPublicKey_withHS512Token_thenNullWithoutDownloadingKey() {
+	public void getPublicKeyWithHS512TokenThenNullWithoutDownloadingKeyTest() {
 		assertNull(validateTokenHelper.getPublicKey(JWT.decode(hmacToken("HS512", HS512_SECRET))));
 	}
 

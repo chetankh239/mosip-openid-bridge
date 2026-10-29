@@ -67,33 +67,33 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void isNimbusToken_withEd25519AndES256KTokens_thenTrue() throws Exception {
+	public void isNimbusTokenWithEd25519AndES256KTokensThenTrueTest() throws Exception {
 		assertTrue(JWTUtils.isNimbusToken(JWT.decode(signEd25519(ed25519Key(), "mock-user"))));
 		assertTrue(JWTUtils.isNimbusToken(JWT.decode(signES256K(es256kKey(), "mock-user"))));
 	}
 
 	@Test
-	public void isNimbusToken_withOtherAlgorithm_thenFalse() {
+	public void isNimbusTokenWithOtherAlgorithmThenFalseTest() {
 		String rs256Token = JWT.create().withSubject("mock-user").sign(Algorithm
 				.RSA256((RSAPublicKey) rsaKeyPair.getPublic(), (RSAPrivateKey) rsaKeyPair.getPrivate()));
 		assertFalse(JWTUtils.isNimbusToken(JWT.decode(rs256Token)));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withEd25519_thenTrue() throws Exception {
+	public void isNimbusSignatureValidWithEd25519ThenTrueTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 
 		assertTrue(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(key, "mock-user")), key.toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withEd25519AndWrongKey_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithEd25519AndWrongKeyThenFalseTest() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(ed25519Key(), "mock-user")),
 				ed25519Key().toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withEd25519AndTamperedPayload_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithEd25519AndTamperedPayloadThenFalseTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 		String[] original = signEd25519(key, "mock-user").split("\\.");
 		String[] other = signEd25519(key, "other-user").split("\\.");
@@ -103,33 +103,33 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withEd25519AndKeyOfOtherCurve_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithEd25519AndKeyOfOtherCurveThenFalseTest() throws Exception {
 		OctetKeyPair ed448Key = new OctetKeyPair.Builder(Curve.Ed448, Base64URL.encode(new byte[57])).build();
 
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(ed25519Key(), "mock-user")), ed448Key));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withEd25519AndKeyOfOtherType_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithEd25519AndKeyOfOtherTypeThenFalseTest() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(ed25519Key(), "mock-user")),
 				es256kKey().toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withES256K_thenTrue() throws Exception {
+	public void isNimbusSignatureValidWithES256KThenTrueTest() throws Exception {
 		ECKey key = es256kKey();
 
 		assertTrue(JWTUtils.isNimbusSignatureValid(JWT.decode(signES256K(key, "mock-user")), key.toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withES256KAndWrongKey_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithES256KAndWrongKeyThenFalseTest() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signES256K(es256kKey(), "mock-user")),
 				es256kKey().toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withES256KAndTamperedPayload_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithES256KAndTamperedPayloadThenFalseTest() throws Exception {
 		ECKey key = es256kKey();
 		String[] original = signES256K(key, "mock-user").split("\\.");
 		String[] other = signES256K(key, "other-user").split("\\.");
@@ -139,7 +139,7 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withES256KAndKeyOfOtherCurve_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithES256KAndKeyOfOtherCurveThenFalseTest() throws Exception {
 		ECKey p256Key = new ECKeyGenerator(Curve.P_256).keyID("p256").generate();
 
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signES256K(es256kKey(), "mock-user")),
@@ -147,19 +147,19 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withES256KAndKeyOfOtherType_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithES256KAndKeyOfOtherTypeThenFalseTest() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signES256K(es256kKey(), "mock-user")),
 				ed25519Key().toPublicJWK()));
 	}
 
 	@Test
-	public void isNimbusSignatureValid_withNullKey_thenFalse() throws Exception {
+	public void isNimbusSignatureValidWithNullKeyThenFalseTest() throws Exception {
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signEd25519(ed25519Key(), "mock-user")), null));
 		assertFalse(JWTUtils.isNimbusSignatureValid(JWT.decode(signES256K(es256kKey(), "mock-user")), null));
 	}
 
 	@Test
-	public void getPublicJWK_withEd25519Key_thenReturnPublicKeyOnly() throws Exception {
+	public void getPublicJWKWithEd25519KeyThenReturnPublicKeyOnlyTest() throws Exception {
 		OctetKeyPair key = new OctetKeyPairGenerator(Curve.Ed25519).keyID(UUID.randomUUID().toString()).generate();
 		String url = serve(new JWKSet(key).toString());
 
@@ -171,7 +171,7 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void getPublicJWK_withES256KKey_thenReturnPublicKeyOnly() throws Exception {
+	public void getPublicJWKWithES256KKeyThenReturnPublicKeyOnlyTest() throws Exception {
 		ECKey key = new ECKeyGenerator(Curve.SECP256K1).provider(BC).keyID(UUID.randomUUID().toString()).generate();
 		String url = serve(new JWKSet(key).toString());
 
@@ -183,7 +183,7 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void getPublicJWK_calledTwice_thenDownloadsOnce() throws Exception {
+	public void getPublicJWKCalledTwiceThenDownloadsOnceTest() throws Exception {
 		OctetKeyPair key = new OctetKeyPairGenerator(Curve.Ed25519).keyID(UUID.randomUUID().toString()).generate();
 		String url = serve(new JWKSet(key).toString());
 
@@ -194,14 +194,14 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test
-	public void getPublicJWK_withUnknownKeyId_thenNull() throws Exception {
+	public void getPublicJWKWithUnknownKeyIdThenNullTest() throws Exception {
 		String url = serve(new JWKSet(ed25519Key()).toString());
 
 		assertNull(JWTUtils.getPublicJWK(url, "unknown"));
 	}
 
 	@Test(expected = IOException.class)
-	public void getPublicJWK_withUnreachableEndpoint_thenFail() throws Exception {
+	public void getPublicJWKWithUnreachableEndpointThenFailTest() throws Exception {
 		String url = serve(new JWKSet().toString());
 		server.stop(0);
 
@@ -209,12 +209,12 @@ public class JWTUtilsNimbusTest {
 	}
 
 	@Test(expected = ParseException.class)
-	public void getPublicJWK_withInvalidKeySet_thenFail() throws Exception {
+	public void getPublicJWKWithInvalidKeySetThenFailTest() throws Exception {
 		JWTUtils.getPublicJWK(serve("not a key set"), UUID.randomUUID().toString());
 	}
 
 	@Test(expected = URISyntaxException.class)
-	public void getPublicJWK_withInvalidUrl_thenFail() throws Exception {
+	public void getPublicJWKWithInvalidUrlThenFailTest() throws Exception {
 		JWTUtils.getPublicJWK("http://invalid host/certs", UUID.randomUUID().toString());
 	}
 

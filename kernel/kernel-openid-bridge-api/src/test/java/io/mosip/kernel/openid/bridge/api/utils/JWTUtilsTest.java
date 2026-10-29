@@ -31,21 +31,21 @@ public class JWTUtilsTest {
 	}
 
 	@Test
-	public void getVerificationAlgorithm_withUnknownAlgorithm_thenFallbackToRS256() {
+	public void getVerificationAlgorithmWithUnknownAlgorithmThenFallbackToRS256Test() {
 		DecodedJWT decodedJWT = JWT.decode(token);
 
 		JWTUtils.getVerificationAlgorithm("unknown", keyPair.getPublic()).verify(decodedJWT);
 	}
 
 	@Test
-	public void getVerificationAlgorithm_withNullAlgorithm_thenFallbackToRS256() {
+	public void getVerificationAlgorithmWithNullAlgorithmThenFallbackToRS256Test() {
 		DecodedJWT decodedJWT = JWT.decode(token);
 
 		JWTUtils.getVerificationAlgorithm(null, keyPair.getPublic()).verify(decodedJWT);
 	}
 
 	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withFallbackAndTokenSignedByOtherAlgorithm_thenFail() {
+	public void getVerificationAlgorithmWithFallbackAndTokenSignedByOtherAlgorithmThenFailTest() {
 		String ps256Token = JWT.create().withSubject("mock-user").sign(
 				Algorithm.RSA256PSS((RSAPublicKey) keyPair.getPublic(), (RSAPrivateKey) keyPair.getPrivate()));
 
@@ -53,22 +53,22 @@ public class JWTUtilsTest {
 	}
 
 	@Test
-	public void isClaimPresent_withValue_thenTrue() {
+	public void isClaimPresentWithValueThenTrueTest() {
 		assertTrue(JWTUtils.isClaimPresent(JWT.decode(token).getClaim("present")));
 	}
 
 	@Test
-	public void isClaimPresent_withMissingClaim_thenFalse() {
+	public void isClaimPresentWithMissingClaimThenFalseTest() {
 		assertFalse(JWTUtils.isClaimPresent(JWT.decode(token).getClaim("absent")));
 	}
 
 	@Test
-	public void isClaimPresent_withJsonNullClaim_thenFalse() {
+	public void isClaimPresentWithJsonNullClaimThenFalseTest() {
 		assertFalse(JWTUtils.isClaimPresent(JWT.decode(token).getClaim("nullClaim")));
 	}
 
 	@Test
-	public void isClaimPresent_withNullClaim_thenFalse() {
+	public void isClaimPresentWithNullClaimThenFalseTest() {
 		assertFalse(JWTUtils.isClaimPresent(null));
 	}
 }

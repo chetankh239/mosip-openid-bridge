@@ -50,7 +50,7 @@ public class JWTUtilsVerificationAlgorithmTest {
 	}
 
 	@Test
-	public void getVerificationAlgorithm_withValidSignature_thenPass() throws Exception {
+	public void getVerificationAlgorithmWithValidSignatureThenPassTest() throws Exception {
 		KeyPair keyPair = signingKeyPair();
 		DecodedJWT token = JWT.decode(sign(keyPair, "mock-user"));
 
@@ -58,14 +58,14 @@ public class JWTUtilsVerificationAlgorithmTest {
 	}
 
 	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withWrongKey_thenFail() throws Exception {
+	public void getVerificationAlgorithmWithWrongKeyThenFailTest() throws Exception {
 		DecodedJWT token = JWT.decode(sign(signingKeyPair(), "mock-user"));
 
 		JWTUtils.getVerificationAlgorithm(tokenAlgo, KEY_PAIRS.get(tokenAlgo)[1].getPublic()).verify(token);
 	}
 
 	@Test(expected = SignatureVerificationException.class)
-	public void getVerificationAlgorithm_withTamperedPayload_thenFail() throws Exception {
+	public void getVerificationAlgorithmWithTamperedPayloadThenFailTest() throws Exception {
 		KeyPair keyPair = signingKeyPair();
 		String[] original = sign(keyPair, "mock-user").split("\\.");
 		String[] other = sign(keyPair, "other-user").split("\\.");
@@ -75,7 +75,7 @@ public class JWTUtilsVerificationAlgorithmTest {
 	}
 
 	@Test(expected = AlgorithmMismatchException.class)
-	public void getVerificationAlgorithm_withKeyOfOtherType_thenFail() throws Exception {
+	public void getVerificationAlgorithmWithKeyOfOtherTypeThenFailTest() throws Exception {
 		String otherKeyAlgo = tokenAlgo.startsWith("ES") ? "RS256" : "ES256";
 
 		JWTUtils.getVerificationAlgorithm(tokenAlgo, KEY_PAIRS.get(otherKeyAlgo)[0].getPublic());

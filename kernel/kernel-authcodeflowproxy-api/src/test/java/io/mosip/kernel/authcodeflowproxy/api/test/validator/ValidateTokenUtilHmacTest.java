@@ -31,7 +31,7 @@ public class ValidateTokenUtilHmacTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withHS384AndConfiguredSecret_thenPass() {
+	public void verifyJWTSignagureWithHS384AndConfiguredSecretThenPassTest() {
 		ReflectionTestUtils.setField(validateTokenUtil, "hmacSecret", HS384_SECRET);
 
 		ImmutablePair<Boolean, AuthErrorCode> res = validateTokenUtil.verifyJWTSignagure(JWT.decode(
@@ -42,14 +42,14 @@ public class ValidateTokenUtilHmacTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withHS512AndConfiguredSecret_thenPass() {
+	public void verifyJWTSignagureWithHS512AndConfiguredSecretThenPassTest() {
 		ReflectionTestUtils.setField(validateTokenUtil, "hmacSecret", HS512_SECRET);
 
 		assertTrue(validateTokenUtil.verifyJWTSignagure(JWT.decode(hs512(HS512_SECRET))).getLeft());
 	}
 
 	@Test
-	public void verifyJWTSignagure_withHS512AndNoConfiguredSecret_thenUnauthorized() {
+	public void verifyJWTSignagureWithHS512AndNoConfiguredSecretThenUnauthorizedTest() {
 		ImmutablePair<Boolean, AuthErrorCode> res = validateTokenUtil.verifyJWTSignagure(JWT.decode(hs512(HS512_SECRET)));
 
 		assertFalse(res.getLeft());
@@ -57,7 +57,7 @@ public class ValidateTokenUtilHmacTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withHS512AndWrongSecret_thenUnauthorized() {
+	public void verifyJWTSignagureWithHS512AndWrongSecretThenUnauthorizedTest() {
 		ReflectionTestUtils.setField(validateTokenUtil, "hmacSecret", HS512_SECRET.replace('0', '9'));
 
 		ImmutablePair<Boolean, AuthErrorCode> res = validateTokenUtil.verifyJWTSignagure(JWT.decode(hs512(HS512_SECRET)));
@@ -67,7 +67,7 @@ public class ValidateTokenUtilHmacTest {
 	}
 
 	@Test
-	public void getPublicKey_withHS512Token_thenNullWithoutDownloadingKey() {
+	public void getPublicKeyWithHS512TokenThenNullWithoutDownloadingKeyTest() {
 		assertNull(validateTokenUtil.getPublicKey(JWT.decode(hs512(HS512_SECRET))));
 	}
 

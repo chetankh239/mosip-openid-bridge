@@ -273,7 +273,7 @@ public class TokenValidationHelperTest {
 	}
 
 	@Test
-	public void getTokenValidatedUserResponse_withHS512Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+	public void getTokenValidatedUserResponseWithHS512TokenThenValidatedOfflineWithoutPublicKeyTest() throws Exception {
 		String token = JWT.create().withSubject("mock-user")
 				.sign(Algorithm.HMAC512("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".getBytes()));
 
@@ -281,12 +281,12 @@ public class TokenValidationHelperTest {
 	}
 
 	@Test
-	public void getTokenValidatedUserResponse_withEd25519Token_thenValidatedOfflineWithoutPublicKey() throws Exception {
+	public void getTokenValidatedUserResponseWithEd25519TokenThenValidatedOfflineWithoutPublicKeyTest() throws Exception {
 		assertValidatedOfflineWithoutPublicKey(tokenWithAlgorithm("Ed25519"));
 	}
 
 	@Test
-	public void getTokenValidatedUserResponse_withES256KToken_thenValidatedOfflineWithoutPublicKey() throws Exception {
+	public void getTokenValidatedUserResponseWithES256KTokenThenValidatedOfflineWithoutPublicKeyTest() throws Exception {
 		assertValidatedOfflineWithoutPublicKey(tokenWithAlgorithm("ES256K"));
 	}
 

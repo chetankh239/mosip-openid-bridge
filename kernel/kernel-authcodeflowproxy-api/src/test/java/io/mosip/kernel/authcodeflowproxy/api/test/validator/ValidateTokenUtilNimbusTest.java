@@ -57,7 +57,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withEd25519Token_thenPass() throws Exception {
+	public void verifyJWTSignagureWithEd25519TokenThenPassTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 		serve(new JWKSet(key));
 
@@ -69,7 +69,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withES256KToken_thenPass() throws Exception {
+	public void verifyJWTSignagureWithES256KTokenThenPassTest() throws Exception {
 		ECKey key = es256kKey();
 		serve(new JWKSet(key));
 
@@ -81,7 +81,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withEd25519TokenAndWrongKey_thenUnauthorized() throws Exception {
+	public void verifyJWTSignagureWithEd25519TokenAndWrongKeyThenUnauthorizedTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 		serve(new JWKSet(new OctetKeyPairGenerator(Curve.Ed25519).keyID(key.getKeyID()).generate()));
 
@@ -89,7 +89,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withES256KTokenAndWrongKey_thenUnauthorized() throws Exception {
+	public void verifyJWTSignagureWithES256KTokenAndWrongKeyThenUnauthorizedTest() throws Exception {
 		ECKey key = es256kKey();
 		serve(new JWKSet(new ECKeyGenerator(Curve.SECP256K1).provider(BC).keyID(key.getKeyID()).generate()));
 
@@ -97,7 +97,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withEd25519TokenAndUnknownKeyId_thenUnauthorized() throws Exception {
+	public void verifyJWTSignagureWithEd25519TokenAndUnknownKeyIdThenUnauthorizedTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 		serve(new JWKSet(ed25519Key()));
 
@@ -105,7 +105,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void verifyJWTSignagure_withEd25519TokenAndUnreachableEndpoint_thenUnauthorized() throws Exception {
+	public void verifyJWTSignagureWithEd25519TokenAndUnreachableEndpointThenUnauthorizedTest() throws Exception {
 		OctetKeyPair key = ed25519Key();
 		serve(new JWKSet(key));
 		server.stop(0);
@@ -114,7 +114,7 @@ public class ValidateTokenUtilNimbusTest {
 	}
 
 	@Test
-	public void getPublicKey_withEd25519AndES256KTokens_thenNullWithoutDownloadingKey() throws Exception {
+	public void getPublicKeyWithEd25519AndES256KTokensThenNullWithoutDownloadingKeyTest() throws Exception {
 		assertNull(validateTokenUtil.getPublicKey(JWT.decode(signEd25519(ed25519Key()))));
 		assertNull(validateTokenUtil.getPublicKey(JWT.decode(signES256K(es256kKey()))));
 	}

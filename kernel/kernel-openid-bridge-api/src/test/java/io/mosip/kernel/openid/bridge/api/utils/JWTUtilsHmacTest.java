@@ -31,13 +31,13 @@ public class JWTUtilsHmacTest {
 	}
 
 	@Test
-	public void isHmacToken_withHS384AndHS512Tokens_thenTrue() {
+	public void isHmacTokenWithHS384AndHS512TokensThenTrueTest() {
 		assertTrue(JWTUtils.isHmacToken(JWT.decode(hs384(HS384_SECRET, "mock-user"))));
 		assertTrue(JWTUtils.isHmacToken(JWT.decode(hs512(HS512_SECRET, "mock-user"))));
 	}
 
 	@Test
-	public void isHmacToken_withOtherAlgorithms_thenFalse() {
+	public void isHmacTokenWithOtherAlgorithmsThenFalseTest() {
 		String hs256 = JWT.create().withSubject("mock-user").sign(Algorithm.HMAC256(HS384_SECRET));
 		String rs256 = JWT.create().withSubject("mock-user").sign(
 				Algorithm.RSA256((RSAPublicKey) rsaKeyPair.getPublic(), (RSAPrivateKey) rsaKeyPair.getPrivate()));
@@ -47,17 +47,17 @@ public class JWTUtilsHmacTest {
 	}
 
 	@Test
-	public void isHmacSignatureValid_withHS384_thenTrue() {
+	public void isHmacSignatureValidWithHS384ThenTrueTest() {
 		assertTrue(JWTUtils.isHmacSignatureValid(JWT.decode(hs384(HS384_SECRET, "mock-user")), HS384_SECRET));
 	}
 
 	@Test
-	public void isHmacSignatureValid_withHS512_thenTrue() {
+	public void isHmacSignatureValidWithHS512ThenTrueTest() {
 		assertTrue(JWTUtils.isHmacSignatureValid(JWT.decode(hs512(HS512_SECRET, "mock-user")), HS512_SECRET));
 	}
 
 	@Test
-	public void isHmacSignatureValid_withWrongSecret_thenFalse() {
+	public void isHmacSignatureValidWithWrongSecretThenFalseTest() {
 		assertFalse(JWTUtils.isHmacSignatureValid(JWT.decode(hs384(HS384_SECRET, "mock-user")),
 				HS384_SECRET.replace('0', '9')));
 		assertFalse(JWTUtils.isHmacSignatureValid(JWT.decode(hs512(HS512_SECRET, "mock-user")),
@@ -65,7 +65,7 @@ public class JWTUtilsHmacTest {
 	}
 
 	@Test
-	public void isHmacSignatureValid_withTamperedPayload_thenFalse() {
+	public void isHmacSignatureValidWithTamperedPayloadThenFalseTest() {
 		String[] original = hs512(HS512_SECRET, "mock-user").split("\\.");
 		String[] other = hs512(HS512_SECRET, "other-user").split("\\.");
 
@@ -74,13 +74,13 @@ public class JWTUtilsHmacTest {
 	}
 
 	@Test
-	public void isHmacSignatureValid_withoutConfiguredSecret_thenFalse() {
+	public void isHmacSignatureValidWithoutConfiguredSecretThenFalseTest() {
 		assertFalse(JWTUtils.isHmacSignatureValid(JWT.decode(hs384(HS384_SECRET, "mock-user")), null));
 		assertFalse(JWTUtils.isHmacSignatureValid(JWT.decode(hs384(HS384_SECRET, "mock-user")), ""));
 	}
 
 	@Test
-	public void isHmacSignatureValid_withSecretShorterThanHashOutput_thenFalse() {
+	public void isHmacSignatureValidWithSecretShorterThanHashOutputThenFalseTest() {
 		String shortHs384Secret = HS384_SECRET.substring(0, 47);
 		String shortHs512Secret = HS512_SECRET.substring(0, 63);
 
@@ -89,20 +89,20 @@ public class JWTUtilsHmacTest {
 	}
 
 	@Test
-	public void isHmacSignatureValid_withSecretExactlyAsLongAsHashOutput_thenTrue() {
+	public void isHmacSignatureValidWithSecretExactlyAsLongAsHashOutputThenTrueTest() {
 		assertTrue(JWTUtils.isHmacSignatureValid(JWT.decode(hs384(HS384_SECRET, "mock-user")), HS384_SECRET));
 		assertTrue(JWTUtils.isHmacSignatureValid(JWT.decode(hs512(HS512_SECRET, "mock-user")), HS512_SECRET));
 	}
 
 	@Test
-	public void isHmacSignatureValid_withTokenOfOtherAlgorithm_thenFalse() {
+	public void isHmacSignatureValidWithTokenOfOtherAlgorithmThenFalseTest() {
 		String hs256 = JWT.create().withSubject("mock-user").sign(Algorithm.HMAC256(HS384_SECRET));
 
 		assertFalse(JWTUtils.isHmacSignatureValid(JWT.decode(hs256), HS384_SECRET));
 	}
 
 	@Test
-	public void isHmacSignatureValid_withTokenSignedWithPublicKeyAsSecret_thenFalse() {
+	public void isHmacSignatureValidWithTokenSignedWithPublicKeyAsSecretThenFalseTest() {
 		byte[] publicKeyBytes = Base64.getEncoder().encode(rsaKeyPair.getPublic().getEncoded());
 		String forged = JWT.create().withSubject("admin").sign(Algorithm.HMAC512(publicKeyBytes));
 
